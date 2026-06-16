@@ -1,5 +1,5 @@
 ---
-title: "Connect the Ecommerce Delivery API to MongoDB"
+title: "Connect the Ecommerce Delivery API to MongoDB Atlas"
 sidebarTitle: "Database"
 description: "Set up MongoDB with Mongoose for the Ecommerce Delivery API, including connection configuration and a reference for all four data models."
 ---
@@ -83,6 +83,7 @@ Clothing items listed for sale.
 
 | Field | Type | Notes |
 |-------|------|-------|
+| `userId` | `String` | ID of the admin who created the product |
 | `title` | `String` | Product name |
 | `description` | `String` | Long-form description |
 | `price` | `Number` | Full price |
@@ -94,7 +95,6 @@ Clothing items listed for sale.
 | `typeShirt` | `String` | Garment cut: `Overside`, `CropTop`, `Regular Fit`, `Semi-Overside`, or `Hoodie` |
 | `productImg` | `Array` | Uploaded product image objects |
 | `points` | `{ cant, users[] }` | Like/point counter and list of users who have liked the product |
-| `userId` | `String` | ID of the admin who created the product |
 
 ### Sale
 

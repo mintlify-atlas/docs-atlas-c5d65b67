@@ -1,12 +1,12 @@
 ---
 title: "Roles and permissions in the Ecommerce Delivery API"
 sidebarTitle: "Roles & Permissions"
-description: "A 4-tier role system controls endpoint access using JWT middleware guards that verify identity and role membership on every protected request."
+description: "A 5-tier role system controls endpoint access using JWT middleware guards that verify identity and role membership on every protected request."
 ---
 
-The Ecommerce Delivery API enforces access control through a combination of JSON Web Tokens and role-based middleware guards. Every user carries a `roles` array in their profile, and three middleware functions — `Token`, `TokenAdmin`, and `TokenOptional` — cooperate to decide whether a request is allowed to proceed to its handler.
+The Ecommerce Delivery API enforces access control through a combination of JSON Web Tokens and role-based middleware guards. Every user carries a `roles` array in their profile, and four middleware functions — `Token`, `TokenAdmin`, `TokenCompany`, and `TokenOptional` — cooperate to decide whether a request is allowed to proceed to its handler.
 
-## The four roles
+## The five roles
 
 Roles are defined as `{name, value}` objects stored on the `User` document. The numeric string in the `value` field is what the middleware checks programmatically.
 
@@ -15,15 +15,16 @@ Roles are defined as `{name, value}` objects stored on the `User` document. The 
 | `"1"` | usuario   | Regular buyer — can place orders and upload payment proof |
 | `"2"` | admin     | Administrator — can validate payments, change order statuses, and search all sales |
 | `"3"` | promotor  | Promotor — promotional role                      |
+| `"4"` | invitado  | Guest — limited access role                      |
 | `"5"` | company   | Company — can list and export all sales records  |
 
 <Note>
   The `roles` field on the `User` model is an **array** of `{name, value}` objects, not a single scalar. This means a single user account can hold more than one role simultaneously — for example, a user with both `"2"` (admin) and `"5"` (company) values would pass both the `TokenAdmin` and `TokenCompany` guards without needing separate accounts.
 </Note>
 
-## The three middleware guards
+## The four middleware guards
 
-All three guards live in `src/middleware/libs/segurity.js` and are applied directly in the route definitions.
+All four guards live in `src/middleware/libs/segurity.js` and are applied directly in the route definitions.
 
 ### `Token` — authentication baseline
 
@@ -56,6 +57,16 @@ req.user = {
 
 `TokenAdmin` **must be chained after `Token`** — it relies on `req.user.id` already being set. It queries the database once more for the user and checks whether any entry in `roles` carries `value === "2"`. If not, it returns `403 Forbidden` with the message `"No tienes permisos para realizar esta accion"`.
 
+### `TokenCompany` — company-only gate
+
+`TokenCompany` **must be chained after `Token`** — it also relies on `req.user.id` already being set. It queries the database for the user and checks whether any entry in `roles` carries `value == "5"`. If no company role is found, it returns `403 Forbidden` with the message `"No tienes permisos para realizar esta accion"`.
+
+```javascript
+// How TokenCompany checks for the company role
+const rol = userX.roles.find((element) => element.value == "5");
+if (rol) return next();
+```
+
 ### `TokenOptional` — unauthenticated pass-through
 
 `TokenOptional` never blocks a request. When no `Authorization` header is present it simply sets `req.user = null` and calls `next()`. When a valid token *is* provided it populates `req.user` identically to `Token`. This guard is used on endpoints — such as product listings — where authenticated users may receive personalised data but anonymous visitors must still be served.
@@ -75,6 +86,24 @@ The table below shows how the guards are applied across the API's main route gro
 | `POST /api/sale/export-list-sale-xlsx` | `Token` | Authenticated user |
 | `POST /api/sale/get-search/:query/:pag?` | `Token` → `TokenAdmin` | Admin only |
 | `POST /api/notification/register-token` | *(none)* | Public |
+| `POST /api/user/create` | *(none)* | Public |
+| `POST /api/user/verify-account` | *(none)* | Public |
+| `POST /api/user/resend-code` | *(none)* | Public |
+| `POST /api/user/login` | *(none)* | Public |
+| `POST /api/user/update` | `Token` | Any authenticated user |
+| `POST /api/user/recover-password-code` | *(none)* | Public |
+| `POST /api/user/update-password-widthout-token` | *(none)* | Public |
+| `POST /api/user/update-password-width-token` | `Token` | Any authenticated user |
+| `POST /api/user/update-role/:userId` | `Token` → `TokenAdmin` | Admin only |
+| `POST /api/user/list-members/:pag?/:perpage?` | `Token` | Any authenticated user |
+| `POST /api/product/create` | `Token` | Any authenticated user |
+| `POST /api/product/update/:productId` | `Token` → `TokenAdmin` | Admin only |
+| `POST /api/product/delete/:productId` | `Token` → `TokenAdmin` | Admin only |
+| `POST /api/product/list-product/:pag?/:perpage?` | `TokenOptional` | Public or authenticated |
+| `POST /api/product/points` | `Token` | Any authenticated user |
+| `POST /api/product/list-id/:productId` | `Token` | Any authenticated user |
+| `POST /api/product/search-product/:query/:pag?` | `TokenOptional` | Public or authenticated |
+| `POST /api/product/get/by-shirt-types/:typeShirt` | `TokenOptional` | Public or authenticated |
 
 ## Updating a user's roles
 

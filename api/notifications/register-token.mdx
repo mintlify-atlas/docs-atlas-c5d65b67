@@ -1,5 +1,5 @@
 ---
-title: "POST /api/notification/register-token — Register FCM device token"
+title: "Register FCM Token | POST /api/notification/register-token"
 sidebarTitle: "Register Token"
 description: "Register a Firebase Cloud Messaging device token to enable push notifications for order updates, delivery tracking, and payment events."
 ---
@@ -164,7 +164,7 @@ onTokenRefresh(messaging, async () => {
 
 ```bash
 curl --request POST \
-  --url /api/notification/register-token \
+  --url http://localhost:3000/api/notification/register-token \
   --header 'Content-Type: application/json' \
   --data '{
     "userId": "user_abc123",
@@ -184,7 +184,7 @@ curl --request POST \
 
 ```bash
 curl --request POST \
-  --url /api/notification/register-token \
+  --url http://localhost:3000/api/notification/register-token \
   --header 'Content-Type: application/json' \
   --data '{
     "userId": "user_abc123"

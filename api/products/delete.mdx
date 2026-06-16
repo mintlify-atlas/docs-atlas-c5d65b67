@@ -1,7 +1,7 @@
 ---
 title: "POST /api/product/delete/:productId — Delete a product"
 sidebarTitle: "Delete Product"
-description: "Permanently delete a product from the catalog by its MongoDB ObjectId. Requires admin authentication."
+description: "Permanently remove a product from the catalog by its MongoDB ObjectId. This action is irreversible and requires both user and admin tokens."
 ---
 
 The delete endpoint removes a product document from the database. The operation is immediate and irreversible — no soft-delete or archiving is performed. This endpoint is restricted to administrators and requires both a standard user token and an admin token.

@@ -1,7 +1,7 @@
 ---
-title: "POST /api/user/update — Update user profile and avatar"
+title: "POST /api/user/update — Update User Profile and Avatar"
 sidebarTitle: "Update Profile"
-description: "Update the authenticated user's name, address, phone number, ID information, and avatar image using multipart/form-data."
+description: "Update the authenticated user profile including name, address, phone number, and ID fields. Supports avatar image upload via multipart/form-data."
 ---
 
 This endpoint allows an authenticated user to update their own profile information. Because it supports avatar image uploads, the request must be sent as `multipart/form-data` rather than JSON. The user is identified from the JWT token, so no user ID is needed in the request body.

@@ -1,14 +1,14 @@
 ---
-title: "POST /api/sale/status-delivery/:saleId — Add delivery tracking update"
+title: "Delivery Tracking Update — POST /api/sale/status-delivery"
 sidebarTitle: "Delivery Tracking"
-description: "Append a timestamped delivery event to an order's tracking history and push a real-time notification to the buyer."
+description: "Append a timestamped delivery event to an order's tracking history and send a real-time FCM push notification to the buyer with the description and detail."
 ---
 
 The **Delivery Tracking** endpoint lets administrators append granular delivery events to an order's history. Each call pushes a new entry into the sale's `deliveryStatus` array with the provided description, an optional detail note, the current date, and a formatted time. The buyer is immediately notified via an FCM push notification. This allows clients to see a full chronological log of their shipment progress.
 
 ## Endpoint
 
-```
+```text
 POST /api/sale/status-delivery/:saleId
 ```
 

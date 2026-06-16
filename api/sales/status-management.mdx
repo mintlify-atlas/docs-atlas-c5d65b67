@@ -1,7 +1,7 @@
 ---
-title: "POST /api/sale/status-change/:saleId — Update order payment status"
+title: "Update Order Status — POST /api/sale/status-change/:saleId"
 sidebarTitle: "Status Change"
-description: "Change a sale's payment status, optionally decrement product stock on payment, and notify the buyer via push notification."
+description: "Change sale payment status, decrement stock on Pagado, and notify the buyer via FCM. Orders in Entregado state are locked and cannot be updated further."
 ---
 
 The **Status Change** endpoint allows administrators to move a sale through its payment lifecycle. Submitting a new `status` object updates the sale record, triggers relevant business logic (such as decrementing product stock when a payment is confirmed), and sends an FCM push notification to the buyer. Once an order reaches **Entregado** (Delivered) status, it becomes immutable — further status changes are rejected.
@@ -12,7 +12,7 @@ The **Status Change** endpoint allows administrators to move a sale through its 
 
 ## Endpoint
 
-```
+```text
 POST /api/sale/status-change/:saleId
 ```
 

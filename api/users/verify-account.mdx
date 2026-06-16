@@ -1,7 +1,7 @@
 ---
-title: "POST /api/user/verify-account — Verify email address"
+title: "POST /api/user/verify-account — Verify Email Address"
 sidebarTitle: "Verify Account"
-description: "Confirm a newly registered account using the 6-digit code sent by email. Also covers resending the verification code."
+description: "Confirm a newly registered account using the 6-digit code emailed on sign-up. Also covers resending an expired or lost verification code."
 ---
 
 After registration, each new account stays in a `Pendiente de confirmacion` state until the user confirms ownership of their email address. This endpoint accepts the email and the 6-digit code that was dispatched automatically on sign-up. On success, the account status is updated to `usuario activo`.
@@ -49,6 +49,18 @@ Returned when the supplied code does not match the stored `codeActivate` for tha
 }
 ```
 
+#### 400 — Already verified
+
+Returned when the account has already been confirmed (checked before the expiry window).
+
+```json
+{
+  "msj": "Esta cuenta ya ha sido verificada y está activa. Puedes iniciar sesion",
+  "status": false,
+  "alreadyVerified": true
+}
+```
+
 #### 400 — Code expired
 
 Returned when the verification code's 24-hour window has passed. A new code must be requested via `POST /api/user/resend-code`.
@@ -57,18 +69,6 @@ Returned when the verification code's 24-hour window has passed. A new code must
 {
   "msj": "El codigo de verificacion ha expirado. Solicita uno nuevo",
   "status": false
-}
-```
-
-#### 400 — Already verified
-
-Returned when the account has already been confirmed.
-
-```json
-{
-  "msj": "Esta cuenta ya ha sido verificada y está activa. Puedes iniciar sesion",
-  "status": false,
-  "alreadyVerified": true
 }
 ```
 

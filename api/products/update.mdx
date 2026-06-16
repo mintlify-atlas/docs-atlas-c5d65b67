@@ -1,7 +1,7 @@
 ---
-title: "POST /api/product/update/:productId — Update an existing product"
+title: "Update Product — POST /api/product/update/:productId"
 sidebarTitle: "Update Product"
-description: "Update a product's fields, replace its images, and apply a percentage discount to calculate a discounted price. Admin only."
+description: "Modify an existing product — update fields, replace images, and calculate a discounted price from a percentage. Requires admin authentication."
 ---
 
 The update endpoint allows administrators to modify any field of an existing product. All fields are optional — only the values provided in the request body will overwrite the stored data. If new images are uploaded they replace the existing set; if no image files are sent the current images are preserved. When a `discount` percentage is supplied, a `priceDiscount` is automatically calculated and stored alongside the raw percentage value.
@@ -58,16 +58,16 @@ The update endpoint allows administrators to modify any field of an existing pro
 </ParamField>
 
 <ParamField body="discount" type="string">
-  Discount as a percentage value supplied as a string (e.g. `"20"` for 20 %). When this field is present and `price` is a finite number, the server computes:
+  Discount as a percentage value supplied as a string (e.g. `"20"` for 20%). When this field is present and `price` is a finite number, the server computes:
 
-  ```
+  ```text
   priceDiscount = price × (1 − discount / 100)
   ```
 
   The computed `priceDiscount` is stored on the product. The raw `discount` string is also persisted.
 
   <Note>
-    The `discount` field on the Product schema stores the raw percentage string sent here, not the enum `"Sin descuento"` / `"Con descuento"` value. `priceDiscount` holds the calculated numeric result as a string.
+    The `discount` field on the Product schema stores the raw percentage string sent here. `priceDiscount` holds the calculated numeric result as a string.
   </Note>
 </ParamField>
 

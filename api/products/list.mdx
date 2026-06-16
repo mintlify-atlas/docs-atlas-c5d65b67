@@ -1,7 +1,7 @@
 ---
 title: "POST /api/product/list-product — Paginated product catalog"
 sidebarTitle: "List Products"
-description: "Fetch a paginated list of all products in the catalog. Authentication is optional — works for both guests and logged-in users."
+description: "Fetch a paginated list of all products in the catalog, sorted newest-first. Authentication is optional — accessible to both guests and logged-in users."
 ---
 
 The list endpoint returns a paginated slice of the full product catalog, sorted newest-first. It is accessible without authentication, making it suitable for public-facing storefronts. When called with a valid token the request is processed identically — the `TokenOptional` middleware simply attaches user context when a token is present, without blocking unauthenticated requests.

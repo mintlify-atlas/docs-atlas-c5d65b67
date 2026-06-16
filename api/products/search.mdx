@@ -1,7 +1,7 @@
 ---
-title: "Search and filter products by title or shirt type"
+title: "POST /api/product/search-product — Search Products"
 sidebarTitle: "Search Products"
-description: "Two endpoints to find products: full-text title search with regex matching, and exact filtering by numeric shirt-type category."
+description: "Search products by case-insensitive title keyword or filter by numeric shirt-type category code. Both endpoints support pagination and optional auth."
 ---
 
 The search group provides two complementary ways to discover products. The title search endpoint performs a case-insensitive regular expression match against the `title` field, suitable for free-text keyword searches. The shirt-type filter endpoint accepts a numeric category code and returns only products whose `typeShirt` matches the corresponding label exactly. Both endpoints support pagination via optional path parameters and are accessible without authentication.
@@ -47,10 +47,10 @@ Search the product catalog by keyword. The `query` path parameter is used as a c
 
   <Expandable title="pagination fields">
     <ResponseField name="pag" type="string">
-      The current page number as provided in the path.
+      The current page number as provided in the path parameter.
     </ResponseField>
     <ResponseField name="perpage" type="number">
-      The `pag` value from `req.body` as set by the `Paginate` middleware (reflects the raw page parameter).
+      The items-per-page value used for this request, as set by the `Paginate` middleware.
     </ResponseField>
     <ResponseField name="pags" type="number">
       Total number of pages, calculated as `⌈matchingProducts / perpage⌉`.

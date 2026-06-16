@@ -1,7 +1,7 @@
 ---
-title: "POST /api/user/create — Register a new user"
+title: "Register a New User Account — POST /api/user/create"
 sidebarTitle: "Register"
-description: "Create a new user account by providing a name, email, and password. A verification email is sent automatically after registration."
+description: "Create a new user account with name, email, and password. A 6-digit verification code is emailed automatically after the account is created."
 ---
 
 This endpoint creates a new user account in the system. Once submitted, the account is set to a `Pendiente de confirmacion` (pending confirmation) status until the user verifies their email address using the code sent to their inbox. Passwords are hashed with bcrypt before being stored.
@@ -114,7 +114,7 @@ curl -X POST https://your-api.com/api/user/create \
     "status": [{ "name": "Pendiente de confirmacion", "value": "2" }],
     "codeseller": "XK9P2Q",
     "meseller": "ABC123",
-    "codeActivate": "748291",
+    "codeActivate": "aB3xY7",
     "codeActivateExpires": "2024-05-20T18:00:00.000Z",
     "createdAt": "2024-05-19T18:00:00.000Z",
     "updatedAt": "2024-05-19T18:00:00.000Z"

@@ -1,28 +1,19 @@
 ---
-title: "Configure Google Cloud Storage for image uploads"
+title: "Configure Google Cloud Storage for API image uploads"
 sidebarTitle: "Cloud Storage"
 description: "Set up Google Cloud Storage to handle image uploads for product listings, user avatars, and sale payment proofs in the Ecommerce Delivery API."
 ---
 
 The Ecommerce Delivery API stores all user-generated images — product photos, user avatars, and payment proof screenshots — in a [Google Cloud Storage](https://cloud.google.com/storage) bucket. Multer stages each upload to a local `storage/` subdirectory first; Sharp then re-encodes the file to WebP at the correct dimensions before it is streamed to the bucket. The public HTTPS URL returned by Cloud Storage is what gets persisted in MongoDB.
 
-## Required environment variables
+## Required environment variable
 
-Three environment variables control access to Google Cloud Storage. Set these in your `.env` file:
+One environment variable controls which bucket receives uploaded images. Set it in your `.env` file:
 
 <ParamField path="NAMEGOOGLECLOUD" type="string" required>
   The name of the Cloud Storage bucket that receives all uploaded images, for
   example `my-ecommerce-bucket`. The bucket must exist in your Google Cloud
   project before the server starts.
-</ParamField>
-
-<ParamField path="CLIENT_ID" type="string" required>
-  The OAuth 2.0 Client ID associated with your Google Cloud service account.
-</ParamField>
-
-<ParamField path="CLIENT_SECRET" type="string" required>
-  The OAuth 2.0 Client Secret for the service account. Keep this out of version
-  control.
 </ParamField>
 
 <Note>

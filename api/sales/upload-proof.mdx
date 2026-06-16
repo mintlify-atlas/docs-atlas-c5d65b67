@@ -1,7 +1,7 @@
 ---
-title: "POST /api/sale/laod-proof/:saleId — Upload payment proof image"
+title: "Upload Payment Proof — POST /api/sale/laod-proof/:saleId"
 sidebarTitle: "Upload Proof"
-description: "Upload a payment screenshot to an existing order, moving it into payment validation status and alerting all admins."
+description: "Upload a payment screenshot to an order, triggering Validando status and sending an FCM push notification to all admin users with an active device token."
 ---
 
 After placing an order, the buyer must upload a payment proof image (e.g., a bank transfer screenshot) to allow administrators to verify the payment. This endpoint accepts a `multipart/form-data` request containing the image file(s), updates the sale's status to **Validando** (Under review), records the current date as `dateproof`, and sends an FCM push notification to every administrator with an active device token. Both the buyer who owns the order and any admin user are permitted to call this endpoint.
@@ -12,7 +12,7 @@ After placing an order, the buyer must upload a payment proof image (e.g., a ban
 
 ## Endpoint
 
-```
+```text
 POST /api/sale/laod-proof/:saleId
 ```
 

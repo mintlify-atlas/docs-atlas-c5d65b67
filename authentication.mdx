@@ -1,7 +1,7 @@
 ---
 title: "Authenticate requests to the Ecommerce Delivery API"
 sidebarTitle: "Authentication"
-description: "Obtain a JWT Bearer token from the login endpoint and pass it on every protected request using the Authorization header."
+description: "Obtain a JWT Bearer token from POST /api/user/login and pass it on every protected request. Tokens are signed with SECRET and valid for 365 days."
 ---
 
 The Ecommerce Delivery API uses **JSON Web Tokens (JWT)** for authentication. After a user logs in, the server signs a token with the `SECRET` environment variable and returns it in the response. The client must include that token in the `Authorization` header for every request that requires authentication. Tokens last **365 days** and carry the full user identity, so no session state is stored on the server.
@@ -117,19 +117,19 @@ router.post("/update-role/:userId", Token, TokenAdmin, updateRole);
 
 ### `TokenOptional` — optional authentication
 
-Used on routes that serve both anonymous and authenticated users differently. If no token is present, `req.user` is set to `null` and the request continues. If a valid token is present, `req.user` is populated exactly as with `Token`.
+Used on routes that serve both anonymous and authenticated users differently. If no token is present, `req.user` is set to `null` and the request continues. If a valid token is present, `req.user` is populated exactly as with `Token`. Any token error — including an expired token — sets `req.user` to `false` and the request continues rather than being rejected.
 
 ```javascript
-// req.user will be null for unauthenticated requests:
-router.post("/some-public-route", TokenOptional, handler);
+// Applied in a route file alongside other middleware:
+router.post("/some-route", TokenOptional, handler);
 ```
 
 | Scenario | `req.user` value |
 |---|---|
 | No `Authorization` header | `null` |
 | Valid token | Full user object |
-| Invalid / malformed token | `false` (request continues) |
-| Expired token | `403` returned immediately |
+| Invalid, malformed, or expired token | `false` (request continues) |
+| Valid token but user not found in DB | `false` (request continues) |
 
 ## Token payload
 

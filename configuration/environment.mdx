@@ -55,28 +55,29 @@ The template ships with every key present but all values blank, so the server wi
   and be accessible with the service-account credentials bundled in the project.
 </ParamField>
 
+### Google OAuth
+
 <ParamField path="CLIENT_ID" type="string" required>
-  The OAuth 2.0 Client ID for the Google Cloud service account. Used together
-  with `CLIENT_SECRET` to authenticate requests to the Storage API.
+  The OAuth 2.0 Client ID for your Google Cloud project. Used together with
+  `CLIENT_SECRET` to authenticate OAuth-based flows.
 </ParamField>
 
 <ParamField path="CLIENT_SECRET" type="string" required>
-  The OAuth 2.0 Client Secret for the Google Cloud service account. Keep this
-  value out of version control.
+  The OAuth 2.0 Client Secret for your Google Cloud project. Keep this value
+  out of version control.
 </ParamField>
 
 <ParamField path="CLIENT_URL" type="string" required>
   The base URL of the front-end client application. The API uses this value
-  when constructing links that are sent to users (for example in email
-  templates).
+  when constructing links that are sent to users, for example in account
+  verification and password-recovery email templates.
 </ParamField>
 
 ### Email (Nodemailer)
 
 <ParamField path="USER_EMAIL" type="string" required>
   The Gmail address used as the SMTP sender by Nodemailer. This address appears
-  in the `from` field of account-verification, password-recovery, and
-  activation-code emails.
+  in the `from` field of account-verification and password-recovery emails.
 </ParamField>
 
 <ParamField path="PASS_EMAIL" type="string" required>
@@ -86,12 +87,6 @@ The template ships with every key present but all values blank, so the server wi
   instead.
 </ParamField>
 
-<Note>
-  `CLIENT_URL`, `CLIENT_ID`, and `CLIENT_SECRET` are only required when Google
-  Cloud Storage image uploads are in use. The server will start without them,
-  but any endpoint that handles image uploads will fail.
-</Note>
-
 ## Complete `example.env`
 
 ```env
@@ -99,13 +94,13 @@ PORT=
 SECRET=
 MONGODB_URL=
 
-#TODO → Google Storage
+# Google Storage
 NAMEGOOGLECLOUD=
 CLIENT_ID=
 CLIENT_SECRET=
 CLIENT_URL=
 
-#TODO → Envio de correo
+# Email
 USER_EMAIL=
 PASS_EMAIL=
 ```

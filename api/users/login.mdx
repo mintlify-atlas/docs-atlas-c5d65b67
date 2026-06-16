@@ -1,7 +1,7 @@
 ---
-title: "POST /api/user/login — Authenticate and get a JWT token"
+title: "POST /api/user/login — Authenticate and Get a JWT Token"
 sidebarTitle: "Login"
-description: "Authenticate with email and password to receive a signed JWT Bearer token valid for 365 days."
+description: "Authenticate with email and password to receive a signed JWT Bearer token valid for 365 days, plus a full user profile snapshot in the response."
 ---
 
 This endpoint validates a user's credentials and, on success, returns a signed JSON Web Token (JWT) along with the user's profile data. The token must be included in the `Authorization` header as a Bearer token for all protected endpoints. Tokens are valid for **365 days** from the time of issue.

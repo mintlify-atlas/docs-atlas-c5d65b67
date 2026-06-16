@@ -1,7 +1,7 @@
 ---
-title: "POST /api/product/create — Create a new product"
+title: "Create Product — POST /api/product/create endpoint"
 sidebarTitle: "Create Product"
-description: "Create a clothing product with a title, pricing, images, color options, available sizes, and a shirt-fit type."
+description: "Create a new clothing product with title, pricing, uploaded images, color and size options, and a shirt-fit category. Requires authentication."
 ---
 
 The create endpoint registers a new product in the catalog. It accepts a `multipart/form-data` body so that product images can be uploaded alongside the structured fields. Color and size selections are validated against a fixed set of known values; unrecognized labels are stored as-is. The authenticated user's ID is automatically associated with the product on creation.
@@ -46,7 +46,7 @@ The create endpoint registers a new product in the catalog. It accepts a `multip
   ```
 
   **Comma-separated format:**
-  ```
+  ```text
   Rojo,Negro
   ```
 </ParamField>
@@ -62,7 +62,7 @@ The create endpoint registers a new product in the catalog. It accepts a `multip
   ```
 
   **Comma-separated format:**
-  ```
+  ```text
   S,M,L
   ```
 </ParamField>
@@ -80,7 +80,7 @@ The create endpoint registers a new product in the catalog. It accepts a `multip
 </ParamField>
 
 <ParamField body="productImg" type="file[]">
-  One or more product image files. Uploaded using the `productImg` field key as a multi-file upload. Images are stored on disk and their paths are saved to the product record.
+  One or more product image files. Upload using the `productImg` field key as a multi-file upload. Images are stored on disk and their paths are saved to the product record.
 </ParamField>
 
 ### Responses

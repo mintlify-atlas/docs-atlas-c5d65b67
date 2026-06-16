@@ -1,10 +1,10 @@
 ---
-title: "POST /api/user/list-members — List all registered users"
+title: "POST /api/user/list-members — List All Registered Users"
 sidebarTitle: "List Members"
-description: "Retrieve a paginated list of all registered users. Requires a valid authentication token. Page and per-page size are set via URL path parameters."
+description: "Retrieve a paginated list of registered users, sorted newest first. Requires a valid auth token. Page and per-page size are optional URL path parameters."
 ---
 
-This endpoint returns all users stored in the database, sorted by creation date in descending order (newest first). Pagination is controlled through optional URL path parameters rather than query strings. The `Paginate` middleware computes the correct `skip` and `limit` values from those path segments before the controller runs.
+This endpoint returns all users stored in the database, sorted by `_id` in descending order (newest first). Pagination is controlled through optional URL path parameters rather than query strings. The `Paginate` middleware computes the correct `skip` and `limit` values from those path segments before the controller runs.
 
 <Warning>
   This endpoint requires a valid JWT token in the `Authorization` header. Unauthenticated requests receive a `401` response.
@@ -57,7 +57,7 @@ The total number of pages is returned in the response as `pagination.pags`, calc
 </ResponseField>
 
 <ResponseField name="data" type="array">
-  Array of user documents for the requested page. Each document contains all fields stored on the `user` model (name, email, roles, status, address, phone_number, typeIdentification, identification, avatar, membership, codeseller, meseller, timestamps, etc.).
+  Array of user documents for the requested page. Each document contains all active fields stored on the `user` model (name, email, roles, status, address, phone_number, typeIdentification, identification, avatar, timestamps, etc.).
 </ResponseField>
 
 <ResponseField name="pagination" type="object">
@@ -130,8 +130,6 @@ curl -X POST https://your-api.com/api/user/list-members/2/20 \
       "typeIdentification": "CC",
       "identification": "1020304050",
       "avatar": [],
-      "codeseller": "XK9P2Q",
-      "meseller": "",
       "createdAt": "2024-05-19T18:00:00.000Z",
       "updatedAt": "2024-05-19T18:00:00.000Z"
     }

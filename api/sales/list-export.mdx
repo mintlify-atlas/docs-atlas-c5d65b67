@@ -1,7 +1,7 @@
 ---
-title: "List sales, search orders, and export to XLSX"
+title: "Sales List, Search, and XLSX Export Endpoints — API"
 sidebarTitle: "List & Export"
-description: "List sales with optional filters, search orders by status or ID, and download a full sales report as an Excel spreadsheet."
+description: "Browse your own orders, filter all sales as admin, search by status or identification, and download a full XLSX report using consistent filter parameters."
 ---
 
 This page covers the four endpoints used to retrieve and export sales data. A buyer can list their own orders, admins can view and filter all sales across the platform, a dedicated search endpoint supports lookup by status name or customer identification, and an export endpoint generates a downloadable `.xlsx` report using the same filters as the admin list.
@@ -14,7 +14,7 @@ Returns a paginated list of sales belonging to the currently authenticated user.
 
 ### Endpoint
 
-```
+```text
 POST /api/sale/list-sale/:pag?/:perpage?
 ```
 
@@ -62,7 +62,7 @@ Returns a paginated list of all sales across all users. Supports optional text s
 
 ### Endpoint
 
-```
+```text
 POST /api/sale/all-list/:pag?/:perpage?
 ```
 
@@ -125,7 +125,7 @@ Searches all sales by payment status name or customer identification number.
 
 ### Endpoint
 
-```
+```text
 POST /api/sale/get-search/:query/:pag?/:perpage?
 ```
 
@@ -166,7 +166,8 @@ Requires a valid user **Token** and an admin **TokenAdmin** role.
 
 ```bash
 curl -X POST https://your-api.com/api/sale/get-search/Pendiente/1/10 \
-  -H "Authorization: Bearer <your_token>"
+  -H "Authorization: Bearer <your_token>" \
+  -H "TokenAdmin: <your_admin_token>"
 ```
 
 ---
@@ -177,7 +178,7 @@ Applies the same filters as the **List All Sales** endpoint and returns a downlo
 
 ### Endpoint
 
-```
+```text
 POST /api/sale/export-list-sale-xlsx
 ```
 

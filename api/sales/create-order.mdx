@@ -1,7 +1,7 @@
 ---
 title: "POST /api/sale/pay/:productId — Create a new sales order"
 sidebarTitle: "Create Order"
-description: "Place a purchase order for a product by providing shipping details, quantity, and selected product variants."
+description: "Place a purchase order for a product. Supply quantity, color and size variants, and shipping details. Stock is validated and a unique codeSale is assigned."
 ---
 
 The **Create Order** endpoint initiates a new sales transaction for a given product. The authenticated user supplies the quantity to buy, color/size variant selections, and full customer shipping details. The server validates available stock, computes the order total using the discounted price when applicable, assigns a unique order code (`codeSale`), and saves the sale with an initial status of **Pendiente** (Awaiting payment). If a matching sale already exists for the same user, color, and size combination, the order is updated rather than duplicated.
@@ -12,7 +12,7 @@ The **Create Order** endpoint initiates a new sales transaction for a given prod
 
 ## Endpoint
 
-```
+```text
 POST /api/sale/pay/:productId
 ```
 
