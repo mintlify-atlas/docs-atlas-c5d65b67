@@ -1,0 +1,237 @@
+---
+title: "POST /api/product/create — Create a new product"
+sidebarTitle: "Create Product"
+description: "Create a clothing product with a title, pricing, images, color options, available sizes, and a shirt-fit type."
+---
+
+The create endpoint registers a new product in the catalog. It accepts a `multipart/form-data` body so that product images can be uploaded alongside the structured fields. Color and size selections are validated against a fixed set of known values; unrecognized labels are stored as-is. The authenticated user's ID is automatically associated with the product on creation.
+
+---
+
+## POST /api/product/create
+
+<Note>
+  This endpoint requires a valid authentication token. Include your token in the `Authorization` header as `Bearer <token>`.
+</Note>
+
+**Auth:** Token required  
+**Content-Type:** `multipart/form-data`
+
+### Request fields
+
+<ParamField body="title" type="string" required>
+  The display name of the product.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  A full description of the product.
+</ParamField>
+
+<ParamField body="price" type="number" required>
+  Base price of the product (before any discount).
+</ParamField>
+
+<ParamField body="minCant" type="number">
+  Minimum stock quantity. Defaults to `0` if omitted.
+</ParamField>
+
+<ParamField body="colorsSize" type="string" required>
+  Available color options. Accepts either a JSON array of `{ label, value }` objects or a comma-separated string of color labels.
+
+  Known color labels include: `Blanco`, `Negro`, `Gris oscuro`, `Gris claro`, `Azul celeste`, `Azul marino`, `Azul rey`, `Beige`, `Cafe claro`, `Cafe oscuro`, `Verde militar`, `Verde bosque`, `Verde menta`, `Rojo`, `Vino`, `Rosa pastel`, `Fucsia`, `Amarillo mostaza`, `Amarillo crema`, `Naranja`, `Lila`, `Morado`, `Turquesa`, `Amarillo`.
+
+  **JSON array format:**
+  ```json
+  [{"label":"Rojo","value":"14"},{"label":"Negro","value":"2"}]
+  ```
+
+  **Comma-separated format:**
+  ```
+  Rojo,Negro
+  ```
+</ParamField>
+
+<ParamField body="sizes" type="string" required>
+  Available garment sizes. Accepts either a JSON array of `{ label, value }` objects or a comma-separated string of size labels.
+
+  Known size labels: `XS` (1), `S` (2), `M` (3), `L` (4), `XL` (5), `XXL/2XL` (6), `XXXL/3XL` (7).
+
+  **JSON array format:**
+  ```json
+  [{"label":"S","value":"2"},{"label":"M","value":"3"},{"label":"L","value":"4"}]
+  ```
+
+  **Comma-separated format:**
+  ```
+  S,M,L
+  ```
+</ParamField>
+
+<ParamField body="typeShirt" type="string" required>
+  The fit/style category of the garment. Must be one of the following exact values:
+
+  | Value | Description |
+  |---|---|
+  | `Overside` | Oversized fit |
+  | `CropTop` | Crop top cut |
+  | `Regular Fit` | Standard regular fit |
+  | `Semi-Overside` | Semi-oversized fit |
+  | `Hoodie` | Hooded sweatshirt |
+</ParamField>
+
+<ParamField body="productImg" type="file[]">
+  One or more product image files. Uploaded using the `productImg` field key as a multi-file upload. Images are stored on disk and their paths are saved to the product record.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  Human-readable status message. `"Producto creado correctamente"` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success, `false` on failure.
+</ResponseField>
+
+<ResponseField name="dataResponse" type="object">
+  The full product document as saved in the database.
+
+  <Expandable title="dataResponse fields">
+    <ResponseField name="_id" type="string">MongoDB ObjectId of the newly created product.</ResponseField>
+    <ResponseField name="userId" type="string">ID of the authenticated user who created the product.</ResponseField>
+    <ResponseField name="title" type="string">Product title.</ResponseField>
+    <ResponseField name="description" type="string">Product description.</ResponseField>
+    <ResponseField name="price" type="number">Base price.</ResponseField>
+    <ResponseField name="minCant" type="number">Minimum stock quantity.</ResponseField>
+    <ResponseField name="discount" type="string">`"Sin descuento"` by default on creation.</ResponseField>
+    <ResponseField name="priceDiscount" type="string">Empty string by default on creation.</ResponseField>
+    <ResponseField name="colorsSize" type="array">Array of resolved `{ label, value }` color objects.</ResponseField>
+    <ResponseField name="sizes" type="array">Array of resolved `{ label, value }` size objects.</ResponseField>
+    <ResponseField name="typeShirt" type="string">The selected shirt type.</ResponseField>
+    <ResponseField name="productImg" type="array">Array of stored image paths.</ResponseField>
+    <ResponseField name="points" type="object">Like counters: `{ cant: 0, users: [] }` on creation.</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO 8601 creation timestamp.</ResponseField>
+    <ResponseField name="updatedAt" type="string">ISO 8601 last-updated timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | `msj` | Cause |
+|---|---|---|
+| `403` | `"Completa todos los campos para crear un producto"` | One or more required fields are missing. |
+| `403` | `"Error de guardado"` | The product document failed to save. |
+| `500` | _(error object)_ | Unexpected server error. |
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/product/create \
+  -H "Authorization: Bearer <token>" \
+  -F "title=Classic Logo Tee" \
+  -F "description=Comfortable everyday crew-neck t-shirt." \
+  -F "price=29.99" \
+  -F "minCant=50" \
+  -F 'colorsSize=[{"label":"Blanco","value":"1"},{"label":"Negro","value":"2"}]' \
+  -F 'sizes=[{"label":"S","value":"2"},{"label":"M","value":"3"},{"label":"L","value":"4"}]' \
+  -F "typeShirt=Regular Fit" \
+  -F "productImg=@/path/to/image1.jpg" \
+  -F "productImg=@/path/to/image2.jpg"
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "Producto creado correctamente",
+  "status": true,
+  "dataResponse": {
+    "_id": "664a1f2e8b3c4d001e2f3a4b",
+    "userId": "663f0e1d7a2b3c000d1e2f3a",
+    "title": "Classic Logo Tee",
+    "description": "Comfortable everyday crew-neck t-shirt.",
+    "price": 29.99,
+    "minCant": 50,
+    "discount": "Sin descuento",
+    "priceDiscount": "",
+    "colorsSize": [
+      { "label": "Blanco", "value": "1" },
+      { "label": "Negro", "value": "2" }
+    ],
+    "sizes": [
+      { "label": "S", "value": "2" },
+      { "label": "M", "value": "3" },
+      { "label": "L", "value": "4" }
+    ],
+    "typeShirt": "Regular Fit",
+    "productImg": ["storage/product/12image1.jpg", "storage/product/7image2.jpg"],
+    "points": { "cant": 0, "users": [] },
+    "createdAt": "2024-05-20T14:32:00.000Z",
+    "updatedAt": "2024-05-20T14:32:00.000Z"
+  }
+}
+```
+
+---
+
+## POST /api/product/points
+
+Toggle a like (or unlike) on a product for the currently authenticated user. Each user can only register one like per product; calling this endpoint with `accion=1` while already having liked the product has no effect. Calling with `accion=2` removes the like if one exists.
+
+**Auth:** Token required  
+**Content-Type:** `application/json`
+
+### Request fields
+
+<ParamField body="productId" type="string" required>
+  The MongoDB ObjectId of the product to react to.
+</ParamField>
+
+<ParamField body="accion" type="number" required>
+  The reaction action:
+  - `1` — Add a like (ignored if user has already liked the product).
+  - `2` — Remove a like (ignored if user has not liked the product).
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"me gusta"` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+#### Error responses
+
+| Status | `msj` | Cause |
+|---|---|---|
+| `500` | `"Sin parametro de producto"` | `productId` was not provided. |
+| `404` | `"Producto no encontrado"` | No product found for the given ID. |
+| `404` | `"No se encontro el producto seleccionado"` | Product could not be updated. |
+
+### Example
+
+```bash
+# Add a like
+curl -X POST https://your-domain.com/api/product/points \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"productId": "664a1f2e8b3c4d001e2f3a4b", "accion": 1}'
+
+# Remove a like
+curl -X POST https://your-domain.com/api/product/points \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"productId": "664a1f2e8b3c4d001e2f3a4b", "accion": 2}'
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "me gusta",
+  "status": true
+}
+```

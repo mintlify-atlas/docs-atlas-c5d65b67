@@ -1,0 +1,125 @@
+{
+  "projectType": "api-service",
+  "projectName": "Ecommerce Delivery API",
+  "projectDescription": "A Node.js/Express REST API backend for an e-commerce delivery platform, handling users, products, sales orders, and real-time push notifications via Firebase Cloud Messaging.",
+  "theme": "luma",
+  "primaryColor": "#2563EB",
+  "lightColor": "#EFF6FF",
+  "darkColor": "#1E3A6E",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment",
+              "configuration/database",
+              "configuration/cloud-storage"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/roles-permissions",
+              "concepts/sale-lifecycle",
+              "concepts/notifications"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Users",
+            "pages": [
+              "api/users/register",
+              "api/users/verify-account",
+              "api/users/login",
+              "api/users/update-profile",
+              "api/users/password-management",
+              "api/users/list-members"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api/products/create",
+              "api/products/update",
+              "api/products/delete",
+              "api/products/list",
+              "api/products/search"
+            ]
+          },
+          {
+            "group": "Sales",
+            "pages": [
+              "api/sales/create-order",
+              "api/sales/upload-proof",
+              "api/sales/status-management",
+              "api/sales/delivery-tracking",
+              "api/sales/list-export"
+            ]
+          },
+          {
+            "group": "Notifications",
+            "pages": [
+              "api/notifications/register-token"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JWT-based authentication with role-based access control (user, admin, company, promoter)",
+    "Product catalog with images, color/size variants, shirt types, and discount pricing",
+    "Full sale order lifecycle: pending → validating → paid → delivered",
+    "Payment proof image upload with admin notification via Firebase Cloud Messaging",
+    "Real-time delivery status tracking with timestamped history",
+    "Paginated listings for products, users, and sales",
+    "Sales export to XLSX for reporting",
+    "Google Cloud Storage integration for image uploads",
+    "Email verification and password recovery via Nodemailer",
+    "Product search and filtering by type, title query, and shirt category"
+  ],
+  "publicApiSurface": [
+    "POST /api/user/create",
+    "POST /api/user/verify-account",
+    "POST /api/user/resend-code",
+    "POST /api/user/login",
+    "POST /api/user/update",
+    "POST /api/user/recover-password-code",
+    "POST /api/user/update-password-widthout-token",
+    "POST /api/user/update-password-width-token",
+    "POST /api/user/update-role/:userId",
+    "POST /api/user/list-members/:pag?/:perpage?",
+    "POST /api/product/create",
+    "POST /api/product/update/:productId",
+    "POST /api/product/delete/:productId",
+    "POST /api/product/list-product/:pag?/:perpage?",
+    "POST /api/product/points",
+    "POST /api/product/list-id/:productId",
+    "POST /api/product/search-product/:query/:pag?/:perpage?",
+    "POST /api/product/get/by-shirt-types/:typeShirt/:pag?/:perpage?",
+    "POST /api/sale/pay/:productId",
+    "POST /api/sale/laod-proof/:saleId",
+    "POST /api/sale/status-change/:saleId",
+    "POST /api/sale/status-delivery/:saleId",
+    "POST /api/sale/all-list/:pag?/:perpage?",
+    "POST /api/sale/list-sale/:pag?/:perpage?",
+    "POST /api/sale/export-list-sale-xlsx",
+    "POST /api/sale/get-search/:query/:pag?/:perpage?",
+    "POST /api/notification/register-token"
+  ]
+}

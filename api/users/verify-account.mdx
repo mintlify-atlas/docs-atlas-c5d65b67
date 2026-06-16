@@ -1,0 +1,176 @@
+---
+title: "POST /api/user/verify-account — Verify email address"
+sidebarTitle: "Verify Account"
+description: "Confirm a newly registered account using the 6-digit code sent by email. Also covers resending the verification code."
+---
+
+After registration, each new account stays in a `Pendiente de confirmacion` state until the user confirms ownership of their email address. This endpoint accepts the email and the 6-digit code that was dispatched automatically on sign-up. On success, the account status is updated to `usuario activo`.
+
+---
+
+## Verify Account
+
+```
+POST /api/user/verify-account
+```
+
+**Authentication:** None required
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  The email address associated with the account to be verified.
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  The 6-digit verification code received in the registration email.
+</ParamField>
+
+### Response
+
+#### 200 — Account confirmed
+
+<ResponseField name="msj" type="string">
+  `"Cuenta confirmada correctamente. Iniciar sesion para poder disfrutar mas de nuestro contenido"`
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+#### 203 — Incorrect code
+
+Returned when the supplied code does not match the stored `codeActivate` for that email, or when the email does not exist.
+
+```json
+{
+  "msj": "Codigo de verificacion incorrecto",
+  "status": false
+}
+```
+
+#### 400 — Code expired
+
+Returned when the verification code's 24-hour window has passed. A new code must be requested via `POST /api/user/resend-code`.
+
+```json
+{
+  "msj": "El codigo de verificacion ha expirado. Solicita uno nuevo",
+  "status": false
+}
+```
+
+#### 400 — Already verified
+
+Returned when the account has already been confirmed.
+
+```json
+{
+  "msj": "Esta cuenta ya ha sido verificada y está activa. Puedes iniciar sesion",
+  "status": false,
+  "alreadyVerified": true
+}
+```
+
+<Note>
+  The verification code expires **24 hours** after registration (or after the last time it was resent). If it has expired, use `POST /api/user/resend-code` to get a fresh code before calling this endpoint again.
+</Note>
+
+### Example
+
+```bash
+curl -X POST https://your-api.com/api/user/verify-account \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "maria@example.com",
+    "code": "748291"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Cuenta confirmada correctamente. Iniciar sesion para poder disfrutar mas de nuestro contenido",
+  "status": true
+}
+```
+
+---
+
+## Resend Verification Code
+
+If the original code has expired or was not received, request a new one with this endpoint. A new 6-digit code is generated, saved, and emailed to the address provided.
+
+```
+POST /api/user/resend-code
+```
+
+**Authentication:** None required
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  The email address of the account requiring a new verification code.
+</ParamField>
+
+### Response
+
+#### 200 — Code resent
+
+<ResponseField name="msj" type="string">
+  `"Código reenviado exitosamente. Revisa tu correo"`
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated user document with the new `codeActivate` and `codeActivateExpires` values.
+</ResponseField>
+
+#### 404 — Email not found
+
+```json
+{
+  "msj": "No se encontro ningun usuario con este correo",
+  "status": false
+}
+```
+
+#### 400 — Account already active
+
+Returned when the account is already confirmed and no new code is needed.
+
+```json
+{
+  "msj": "Esta cuenta ya ha sido verificada y está activa",
+  "status": false
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-api.com/api/user/resend-code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "maria@example.com"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Código reenviado exitosamente. Revisa tu correo",
+  "status": true,
+  "data": {
+    "_id": "664a1f2e9b1c4a001f2e3d44",
+    "email": "maria@example.com",
+    "codeActivate": "319047",
+    "codeActivateExpires": "2024-05-21T09:00:00.000Z"
+  }
+}
+```

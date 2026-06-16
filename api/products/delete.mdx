@@ -1,0 +1,157 @@
+---
+title: "POST /api/product/delete/:productId — Delete a product"
+sidebarTitle: "Delete Product"
+description: "Permanently delete a product from the catalog by its MongoDB ObjectId. Requires admin authentication."
+---
+
+The delete endpoint removes a product document from the database. The operation is immediate and irreversible — no soft-delete or archiving is performed. This endpoint is restricted to administrators and requires both a standard user token and an admin token.
+
+<Warning>
+  Deletion is **permanent**. There is no undo or recycle bin. Ensure the correct `productId` is used before calling this endpoint. Associated product images stored on disk are **not** automatically removed by this operation.
+</Warning>
+
+---
+
+## POST /api/product/delete/:productId
+
+**Auth:** Token + TokenAdmin required
+
+### Path parameters
+
+<ParamField path="productId" type="string" required>
+  The MongoDB ObjectId of the product to delete.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"Producto eliminado correctamente"` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+#### Error responses
+
+| Status | `msj` | Cause |
+|---|---|---|
+| `403` | `"Sin parametro de producto"` | `productId` path parameter was not provided. |
+| `500` | _(error object)_ | Unexpected server error. |
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/product/delete/664a1f2e8b3c4d001e2f3a4b \
+  -H "Authorization: Bearer <token>"
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "Producto eliminado correctamente",
+  "status": true
+}
+```
+
+---
+
+## POST /api/product/list-id/:productId
+
+Retrieve a single product document by its ID. Returns the full product record including images, colors, sizes, and like counts.
+
+**Auth:** Token required
+
+### Path parameters
+
+<ParamField path="productId" type="string" required>
+  The MongoDB ObjectId of the product to retrieve.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"Cargando producto..."` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The full product document.
+
+  <Expandable title="data fields">
+    <ResponseField name="_id" type="string">MongoDB ObjectId of the product.</ResponseField>
+    <ResponseField name="userId" type="string">ID of the user who created the product.</ResponseField>
+    <ResponseField name="title" type="string">Product title.</ResponseField>
+    <ResponseField name="description" type="string">Product description.</ResponseField>
+    <ResponseField name="price" type="number">Base price.</ResponseField>
+    <ResponseField name="minCant" type="number">Minimum stock quantity.</ResponseField>
+    <ResponseField name="discount" type="string">Discount label or percentage string.</ResponseField>
+    <ResponseField name="priceDiscount" type="string">Calculated discounted price, or empty string if no discount.</ResponseField>
+    <ResponseField name="colorsSize" type="array">Array of `{ label, value }` color objects.</ResponseField>
+    <ResponseField name="sizes" type="array">Array of `{ label, value }` size objects.</ResponseField>
+    <ResponseField name="typeShirt" type="string">Shirt fit type (e.g. `"Regular Fit"`).</ResponseField>
+    <ResponseField name="productImg" type="array">Array of stored image paths.</ResponseField>
+    <ResponseField name="points" type="object">
+      Like counters.
+      <Expandable title="points fields">
+        <ResponseField name="cant" type="number">Total number of likes.</ResponseField>
+        <ResponseField name="users" type="array">Array of user IDs who have liked the product.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">ISO 8601 creation timestamp.</ResponseField>
+    <ResponseField name="updatedAt" type="string">ISO 8601 last-updated timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Cause |
+|---|---|
+| `500` | Unexpected server error or invalid ObjectId format. |
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/product/list-id/664a1f2e8b3c4d001e2f3a4b \
+  -H "Authorization: Bearer <token>"
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "Cargando producto...",
+  "status": true,
+  "data": {
+    "_id": "664a1f2e8b3c4d001e2f3a4b",
+    "userId": "663f0e1d7a2b3c000d1e2f3a",
+    "title": "Classic Logo Tee",
+    "description": "Comfortable everyday crew-neck t-shirt.",
+    "price": 29.99,
+    "minCant": 50,
+    "discount": "Sin descuento",
+    "priceDiscount": "",
+    "colorsSize": [
+      { "label": "Blanco", "value": "1" },
+      { "label": "Negro", "value": "2" }
+    ],
+    "sizes": [
+      { "label": "S", "value": "2" },
+      { "label": "M", "value": "3" },
+      { "label": "L", "value": "4" }
+    ],
+    "typeShirt": "Regular Fit",
+    "productImg": ["storage/product/12image1.jpg"],
+    "points": {
+      "cant": 5,
+      "users": ["663f0e1d7a2b3c000d1e2f3b", "663f0e1d7a2b3c000d1e2f3c"]
+    },
+    "createdAt": "2024-05-20T14:32:00.000Z",
+    "updatedAt": "2024-05-21T09:15:00.000Z"
+  }
+}
+```

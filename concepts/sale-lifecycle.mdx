@@ -1,0 +1,180 @@
+---
+title: "Sale order lifecycle and status transitions"
+sidebarTitle: "Sale Lifecycle"
+description: "Every sale moves through 5 statuses — from Pendiente at creation to Entregado at delivery — each triggered by a specific API call."
+---
+
+Every order in the Ecommerce Delivery API follows a strict, linear lifecycle. From the moment a buyer initiates a purchase to the final delivery confirmation, the `status` field on the `Sale` document tracks exactly where the order stands. Understanding this lifecycle is essential for correctly integrating both the buyer-facing application and the admin or delivery dashboards.
+
+## The five order statuses
+
+The `status` field is a single `{name, value}` object — not an array. Only one status is active at a time.
+
+| Value | Name       | Meaning                                                  |
+|-------|------------|----------------------------------------------------------|
+| `"2"` | Pendiente  | Order created; awaiting upload of payment proof          |
+| `"4"` | Validando  | Payment proof uploaded; admin is reviewing               |
+| `"1"` | Pagado     | Payment confirmed; product stock has been decremented    |
+| `"3"` | Cancelado  | Order cancelled                                          |
+| `"5"` | Entregado  | Order delivered to the buyer                             |
+
+## The `codeSale` order reference
+
+When a sale is first created, the API generates a unique alphanumeric identifier called `codeSale` using the `generateCodeSale()` utility. This code is stored on the `Sale` document and is used throughout the lifecycle — in push notification messages, admin search queries, and buyer-facing receipts — as the human-readable order reference. All status-change notifications sent via Firebase include this code in their message body.
+
+## Full lifecycle walkthrough
+
+<Steps>
+  ### Step 1 — Create the order (`Pendiente`)
+
+  The buyer calls `POST /api/sale/pay/:productId` with their cart details. The API validates stock, calculates the total price, creates a new `Sale` document, and sets the initial status to `Pendiente`.
+
+  ```bash
+  POST /api/sale/pay/:productId
+  Authorization: Bearer <buyer_jwt>
+  Content-Type: application/json
+  ```
+
+  ```json
+  {
+    "cantBuy": 2,
+    "colorsSize": [{ "label": "Rojo", "value": "red" }],
+    "sizes": [{ "label": "M", "value": "M" }],
+    "typeShirt": "polo",
+    "client": {
+      "name_client": "Ana",
+      "lastName_client": "García",
+      "typeIdentification": "CC",
+      "identification": "123456789",
+      "phone_number": "3001234567",
+      "address": "Calle 10 #5-20",
+      "email": "ana@example.com",
+      "zipCode": "110111",
+      "city": "Bogotá"
+    }
+  }
+  ```
+
+  The response includes the full saved `Sale` document with `status: { name: "Pendiente", value: "2" }` and the generated `codeSale`.
+
+  ### Step 2 — Upload payment proof (`Validando`)
+
+  The buyer uploads one or more images of their payment receipt via `POST /api/sale/laod-proof/:saleId`. The API updates the status to `Validando` and sends a push notification to every admin user who has an active FCM token registered.
+
+  ```bash
+  POST /api/sale/laod-proof/:saleId
+  Authorization: Bearer <buyer_jwt>
+  Content-Type: multipart/form-data
+  ```
+
+  ```bash
+  # Form field
+  imgPay: <image file(s)>
+  ```
+
+  After this call, `status` becomes `{ name: "Validando", value: "4" }` and `dateproof` is set to today's date. All admin users receive a push notification with the title **"Nuevo comprobante de pago"**.
+
+  ### Step 3 — Admin confirms payment (`Pagado`)
+
+  An admin calls `POST /api/sale/status-change/:saleId` with the new status object. When the status is set to `Pagado` (`value: "1"`), the API also decrements the `minCant` (available stock) field on the corresponding `Product` document by the quantity purchased.
+
+  ```bash
+  POST /api/sale/status-change/:saleId
+  Authorization: Bearer <admin_jwt>
+  Content-Type: application/json
+  ```
+
+  ```json
+  {
+    "status": { "name": "Pagado", "value": "1" }
+  }
+  ```
+
+  The buyer receives a push notification: **"Actualizacion de tu pedido"** with their `codeSale` and the new status name.
+
+  ### Step 4 — Delivery updates (`deliveryStatus[]`)
+
+  As the shipment progresses, a delivery agent adds timestamped checkpoint entries via `POST /api/sale/status-delivery/:saleId`. Each call pushes a new entry onto the `deliveryStatus` array without changing the top-level `status` field.
+
+  ```bash
+  POST /api/sale/status-delivery/:saleId
+  Authorization: Bearer <delivery_jwt>
+  Content-Type: application/json
+  ```
+
+  ```json
+  {
+    "description": "Paquete en camino",
+    "detail": "Tu pedido salió del centro de distribución en Bogotá"
+  }
+  ```
+
+  The server auto-stamps `date` (YYYY-M-D) and `timeHour` (hh:mm AM/PM) on each entry. The buyer receives a push notification with the title **"Actualizacion en la entrega"**.
+
+  ### Step 5 — Order delivered (`Entregado`)
+
+  The admin or delivery agent makes a final `POST /api/sale/status-change/:saleId` call setting `value: "5"` to mark the order as delivered.
+
+  ```json
+  {
+    "status": { "name": "Entregado", "value": "5" }
+  }
+  ```
+
+  The buyer is notified once more, and the sale is now in its terminal state.
+</Steps>
+
+<Warning>
+  Once a sale reaches **Entregado** (`value: "5"`), any further call to `POST /api/sale/status-change/:saleId` is rejected with HTTP `203` and the message `"Esta venta ya se encuentra en estado de entrega"`. Delivery checkpoint entries via `/status-delivery` can still be appended after this point, but the top-level status can no longer be changed.
+</Warning>
+
+## The `deliveryStatus` array
+
+Unlike the top-level `status` object, `deliveryStatus` is an append-only array that builds a full audit trail of the shipment's physical journey. Each entry has four fields:
+
+| Field         | Type   | Description                                        |
+|---------------|--------|----------------------------------------------------|
+| `description` | String | Short label for the checkpoint (e.g. "En camino")  |
+| `detail`      | String | Longer description of the event                    |
+| `date`        | String | Server-generated date in `YYYY-M-D` format         |
+| `timeHour`    | String | Server-generated time in `hh:mm AM/PM` format      |
+
+```json
+"deliveryStatus": [
+  {
+    "description": "Paquete recibido",
+    "detail": "Tu pedido fue recibido en nuestro almacén",
+    "date": "2024-6-10",
+    "timeHour": "09:30 AM"
+  },
+  {
+    "description": "Paquete en camino",
+    "detail": "Tu pedido salió del centro de distribución en Bogotá",
+    "date": "2024-6-11",
+    "timeHour": "07:15 AM"
+  }
+]
+```
+
+## Status transition diagram
+
+```
+[Order created]
+      │
+      ▼
+  Pendiente (2)  ──── buyer uploads proof ────►  Validando (4)
+                                                       │
+                                         admin confirms payment
+                                                       │
+                                                       ▼
+                                                  Pagado (1)
+                                                  (stock -=)
+                                                       │
+                                           delivery checkpoints added
+                                           to deliveryStatus[]
+                                                       │
+                                                       ▼
+                                                 Entregado (5)  ◄── terminal state
+
+  Cancelado (3)  ◄── admin can set at any non-terminal stage
+```

@@ -1,0 +1,137 @@
+---
+title: "Configure the Ecommerce Delivery API environment variables"
+sidebarTitle: "Environment"
+description: "Reference for all environment variables required to run the Ecommerce Delivery API, covering server, database, storage, and email settings."
+---
+
+The Ecommerce Delivery API reads every runtime value — server port, signing secrets, database credentials, cloud storage keys, and email credentials — from environment variables. These are loaded at startup via [dotenv](https://github.com/motdotla/dotenv), so no configuration is hard-coded in the application. Before starting the server for the first time you must create a `.env` file in the project root and populate it with the values described below.
+
+## Creating your `.env` file
+
+Copy the provided template and then fill in your own values:
+
+```bash
+cp example.env .env
+```
+
+The template ships with every key present but all values blank, so the server will not start until you supply them.
+
+## Environment variable reference
+
+### Server
+
+<ParamField path="PORT" type="number" required>
+  The port the Express HTTP server listens on. Choose any available port; `3000`
+  and `4000` are common development values.
+</ParamField>
+
+### Authentication
+
+<ParamField path="SECRET" type="string" required>
+  The secret string used by **jsonwebtoken** to sign and verify JWT access
+  tokens. This value is also the fallback used by `config.js` when the variable
+  is absent, so it must be overridden in every real environment.
+</ParamField>
+
+<Warning>
+  In production, `SECRET` must be a long, cryptographically random string —
+  treat it like a password. A short or predictable value allows attackers to
+  forge valid tokens. Generate one with `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`.
+</Warning>
+
+### Database
+
+<ParamField path="MONGODB_URL" type="string" required>
+  The full MongoDB connection string passed directly to Mongoose's
+  `connect()` call. See [Database](/configuration/database) for the expected
+  format and Atlas setup instructions.
+</ParamField>
+
+### Google Cloud Storage
+
+<ParamField path="NAMEGOOGLECLOUD" type="string" required>
+  The name of the Google Cloud Storage bucket where product images, user
+  avatars, and payment proof images are stored. The bucket must already exist
+  and be accessible with the service-account credentials bundled in the project.
+</ParamField>
+
+<ParamField path="CLIENT_ID" type="string" required>
+  The OAuth 2.0 Client ID for the Google Cloud service account. Used together
+  with `CLIENT_SECRET` to authenticate requests to the Storage API.
+</ParamField>
+
+<ParamField path="CLIENT_SECRET" type="string" required>
+  The OAuth 2.0 Client Secret for the Google Cloud service account. Keep this
+  value out of version control.
+</ParamField>
+
+<ParamField path="CLIENT_URL" type="string" required>
+  The base URL of the front-end client application. The API uses this value
+  when constructing links that are sent to users (for example in email
+  templates).
+</ParamField>
+
+### Email (Nodemailer)
+
+<ParamField path="USER_EMAIL" type="string" required>
+  The Gmail address used as the SMTP sender by Nodemailer. This address appears
+  in the `from` field of account-verification, password-recovery, and
+  activation-code emails.
+</ParamField>
+
+<ParamField path="PASS_EMAIL" type="string" required>
+  The SMTP password (or Google App Password) for `USER_EMAIL`. Because the API
+  uses Gmail's service transport, a standard Google account password may not
+  work if 2-Step Verification is enabled — create a dedicated App Password
+  instead.
+</ParamField>
+
+<Note>
+  `CLIENT_URL`, `CLIENT_ID`, and `CLIENT_SECRET` are only required when Google
+  Cloud Storage image uploads are in use. The server will start without them,
+  but any endpoint that handles image uploads will fail.
+</Note>
+
+## Complete `example.env`
+
+```env
+PORT=
+SECRET=
+MONGODB_URL=
+
+#TODO → Google Storage
+NAMEGOOGLECLOUD=
+CLIENT_ID=
+CLIENT_SECRET=
+CLIENT_URL=
+
+#TODO → Envio de correo
+USER_EMAIL=
+PASS_EMAIL=
+```
+
+## How configuration is loaded
+
+`src/config.js` imports `dotenv` and re-exports every variable as a typed object with safe empty-string defaults, making it straightforward to import a single `config` object anywhere in the codebase instead of calling `process.env` directly:
+
+```javascript
+import { config } from "dotenv";
+config();
+
+export default {
+  PORT: process.env.PORT || "",
+  SECRET: process.env.SECRET || "contra, token",
+  MONGODB_URL: process.env.MONGODB_URL || "",
+  NAMEGOOGLECLOUD: process.env.NAMEGOOGLECLOUD || "",
+  CLIENT_ID: process.env.CLIENT_ID || "",
+  CLIENT_SECRET: process.env.CLIENT_SECRET || "",
+  CLIENT_URL: process.env.CLIENT_URL || "",
+  USER_EMAIL: process.env.USER_EMAIL || "",
+  PASS_EMAIL: process.env.PASS_EMAIL || "",
+};
+```
+
+<Warning>
+  Never commit your `.env` file to version control. Ensure `.env` is listed in
+  your `.gitignore` before making your first commit.
+</Warning>

@@ -1,0 +1,376 @@
+---
+title: "List sales, search orders, and export to XLSX"
+sidebarTitle: "List & Export"
+description: "List sales with optional filters, search orders by status or ID, and download a full sales report as an Excel spreadsheet."
+---
+
+This page covers the four endpoints used to retrieve and export sales data. A buyer can list their own orders, admins can view and filter all sales across the platform, a dedicated search endpoint supports lookup by status name or customer identification, and an export endpoint generates a downloadable `.xlsx` report using the same filters as the admin list.
+
+---
+
+## 1. List Own Sales
+
+Returns a paginated list of sales belonging to the currently authenticated user.
+
+### Endpoint
+
+```
+POST /api/sale/list-sale/:pag?/:perpage?
+```
+
+### Authentication
+
+Requires a valid user **Token**.
+
+### Path Parameters
+
+<ParamField path="pag" type="number">
+  Page number to retrieve (optional, defaults to `1`).
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  Number of results per page (optional, uses server default if omitted).
+</ParamField>
+
+### Response — 200
+
+```json
+{
+  "msj": "Cargando todas las ventas...",
+  "status": true,
+  "data": [ ],
+  "pagination": {
+    "pag": "1",
+    "perpage": 10,
+    "pags": 3
+  }
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/list-sale/1/10 \
+  -H "Authorization: Bearer <your_token>"
+```
+
+---
+
+## 2. List All Sales (Admin)
+
+Returns a paginated list of all sales across all users. Supports optional text search and month-based date filtering.
+
+### Endpoint
+
+```
+POST /api/sale/all-list/:pag?/:perpage?
+```
+
+### Authentication
+
+Requires a valid user **Token**.
+
+### Path Parameters
+
+<ParamField path="pag" type="number">
+  Page number to retrieve (optional).
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  Number of results per page (optional).
+</ParamField>
+
+### Request Body (Optional Filters)
+
+<ParamField body="general" type="string">
+  Free-text search string. Performs a case-insensitive regex match across the following fields: `name_client`, `lastName_client`, `typeIdentification`, `identification`, `phone_number`, `address`, `email`, `codeseller`, `zipCode`, `city`, `products.title`, `deliveryStatus.description`, and `status.name`.
+</ParamField>
+
+<ParamField body="date" type="string">
+  Month filter in `"YYYY/MM"` format (e.g., `"2024/05"`). Returns all sales whose `createdAt` timestamp falls within that calendar month.
+</ParamField>
+
+### Response — 200
+
+```json
+{
+  "msj": "Cargando ventas relacionadas...",
+  "status": true,
+  "data": [ ],
+  "pagination": {
+    "pag": "1",
+    "perpage": 10,
+    "pags": 12
+  }
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/all-list/1/10 \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "general": "Bogotá",
+    "date": "2024/05"
+  }'
+```
+
+---
+
+## 3. Search Sales
+
+Searches all sales by payment status name or customer identification number.
+
+### Endpoint
+
+```
+POST /api/sale/get-search/:query/:pag?/:perpage?
+```
+
+### Authentication
+
+Requires a valid user **Token** and an admin **TokenAdmin** role.
+
+### Path Parameters
+
+<ParamField path="query" type="string" required>
+  The search string. Matched case-insensitively against `status.name` and `identification` fields.
+</ParamField>
+
+<ParamField path="pag" type="number">
+  Page number to retrieve (optional).
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  Number of results per page (optional).
+</ParamField>
+
+### Response — 200
+
+```json
+{
+  "msj": "Cargando venta",
+  "status": true,
+  "data": [ ],
+  "pagination": {
+    "pag": "1",
+    "perpage": 10,
+    "pags": 2
+  }
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/get-search/Pendiente/1/10 \
+  -H "Authorization: Bearer <your_token>"
+```
+
+---
+
+## 4. Export Sales to XLSX
+
+Applies the same filters as the **List All Sales** endpoint and returns a downloadable Excel (`.xlsx`) file containing the full matching sales dataset.
+
+### Endpoint
+
+```
+POST /api/sale/export-list-sale-xlsx
+```
+
+### Authentication
+
+Requires a valid user **Token**.
+
+### Request Body (Optional Filters)
+
+<ParamField body="general" type="string">
+  Free-text search string (see [List All Sales](#2-list-all-sales-admin) for matched fields).
+</ParamField>
+
+<ParamField body="date" type="string">
+  Month filter in `"YYYY/MM"` format.
+</ParamField>
+
+### Response
+
+Returns a binary file with content type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+
+The exported workbook contains a sheet named **Sales Report** with the following columns:
+
+| Column Header | Source Field |
+|---|---|
+| Estado | `status.name` |
+| Total | `total` |
+| Domicilio | `address` |
+| Ciudad | `city` |
+| Codigo postal | `zipCode` |
+| Fecha | `createdAt` |
+| Correo | `email` |
+| Tipo de identificacion | `typeIdentification` |
+| Identification | `identification` |
+| Nombre | `name_client` |
+| Apellido | `lastName_client` |
+| Telefono | `phone_number` |
+
+<Note>
+  The `.xlsx` file is written to a temporary path (`private/temp/{userId}/Sales_report.xlsx`) on the server and is automatically deleted **60 seconds** after it is sent. Download the file promptly after receiving the response.
+</Note>
+
+### Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/export-list-sale-xlsx \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2024/05"
+  }' \
+  --output Sales_report.xlsx
+```
+
+---
+
+## Sale Response Object
+
+The `data` array returned by the listing endpoints contains Sale documents. The full structure is described below.
+
+<ResponseField name="data" type="array">
+  Array of sale objects.
+
+  <Expandable title="Sale object fields">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId of the sale document.
+    </ResponseField>
+    <ResponseField name="userId" type="string">
+      ID of the user who placed the order.
+    </ResponseField>
+    <ResponseField name="codeseller" type="string">
+      Seller or referral code associated with the sale, if any.
+    </ResponseField>
+    <ResponseField name="total" type="number">
+      Computed order total (`unitPrice × cantBuy`).
+    </ResponseField>
+    <ResponseField name="cantBuy" type="number">
+      Quantity of items purchased.
+    </ResponseField>
+    <ResponseField name="codeSale" type="string">
+      Unique sale code generated at order creation.
+    </ResponseField>
+    <ResponseField name="status" type="object">
+      Current payment/fulfilment status.
+      <Expandable title="status fields">
+        <ResponseField name="name" type="string">
+          Human-readable label (e.g., `"Pendiente"`, `"Pagado"`).
+        </ResponseField>
+        <ResponseField name="value" type="string">
+          Numeric string key (`"1"` – `"5"`).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="name_client" type="string">
+      Customer first name.
+    </ResponseField>
+    <ResponseField name="lastName_client" type="string">
+      Customer last name.
+    </ResponseField>
+    <ResponseField name="typeIdentification" type="string">
+      Type of government-issued ID provided by the customer.
+    </ResponseField>
+    <ResponseField name="identification" type="string">
+      Customer's ID number.
+    </ResponseField>
+    <ResponseField name="phone_number" type="string">
+      Customer's phone number.
+    </ResponseField>
+    <ResponseField name="address" type="string">
+      Delivery street address.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Customer's email address.
+    </ResponseField>
+    <ResponseField name="zipCode" type="string">
+      Delivery postal code.
+    </ResponseField>
+    <ResponseField name="city" type="string">
+      Delivery city.
+    </ResponseField>
+    <ResponseField name="imgPay" type="array">
+      Array of stored image filenames for payment proof uploads.
+    </ResponseField>
+    <ResponseField name="dateproof" type="string">
+      Date the payment proof was uploaded, formatted as `YYYY-M-D`.
+    </ResponseField>
+    <ResponseField name="colorsSize" type="array">
+      Selected color variant(s). Each entry has `{ label: string, value: string }`.
+    </ResponseField>
+    <ResponseField name="sizes" type="array">
+      Selected size variant(s). Each entry has `{ label: string, value: string }`.
+    </ResponseField>
+    <ResponseField name="typeShirt" type="string">
+      Shirt cut/style selected at order creation.
+    </ResponseField>
+    <ResponseField name="products" type="array">
+      Line items included in the order.
+      <Expandable title="product entry fields">
+        <ResponseField name="id" type="string">
+          Product ObjectId.
+        </ResponseField>
+        <ResponseField name="title" type="string">
+          Product title at time of purchase.
+        </ResponseField>
+        <ResponseField name="price" type="number">
+          Unit price at time of purchase.
+        </ResponseField>
+        <ResponseField name="subtotal" type="number">
+          Line-item subtotal (`price × cantBuy`).
+        </ResponseField>
+        <ResponseField name="productImg" type="array">
+          Product image URLs captured at order creation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="deliveryStatus" type="array">
+      Chronological log of delivery tracking events.
+      <Expandable title="deliveryStatus entry fields">
+        <ResponseField name="description" type="string">
+          Summary of the delivery event.
+        </ResponseField>
+        <ResponseField name="detail" type="string">
+          Optional supplementary note.
+        </ResponseField>
+        <ResponseField name="date" type="string">
+          Event date formatted as `YYYY-M-D`.
+        </ResponseField>
+        <ResponseField name="timeHour" type="string">
+          Event time formatted as `HH:MM AM/PM`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp of when the order was created.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 timestamp of the last document update.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination metadata.
+
+  <Expandable title="pagination fields">
+    <ResponseField name="pag" type="string">
+      Current page number (as provided in the path parameter).
+    </ResponseField>
+    <ResponseField name="perpage" type="number">
+      Number of results per page used for this query.
+    </ResponseField>
+    <ResponseField name="pags" type="number">
+      Total number of pages available given the current filter and `perpage` value.
+    </ResponseField>
+  </Expandable>
+</ResponseField>

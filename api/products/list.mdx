@@ -1,0 +1,182 @@
+---
+title: "POST /api/product/list-product — Paginated product catalog"
+sidebarTitle: "List Products"
+description: "Fetch a paginated list of all products in the catalog. Authentication is optional — works for both guests and logged-in users."
+---
+
+The list endpoint returns a paginated slice of the full product catalog, sorted newest-first. It is accessible without authentication, making it suitable for public-facing storefronts. When called with a valid token the request is processed identically — the `TokenOptional` middleware simply attaches user context when a token is present, without blocking unauthenticated requests.
+
+Pagination is controlled via path parameters. If `pag` and `perpage` are omitted, the server defaults to page `1` with `10` items per page.
+
+---
+
+## POST /api/product/list-product/:pag?/:perpage?
+
+**Auth:** Optional (token accepted but not required)
+
+### Path parameters
+
+<ParamField path="pag" type="number">
+  Page number to retrieve. Defaults to `1` when omitted. Pages are 1-indexed — passing `1` returns the first page.
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  Number of products per page. Defaults to `10` when omitted.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"Cargando productos..."` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of product objects for the requested page, sorted by `_id` descending (newest first).
+
+  <Expandable title="Product object fields">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId uniquely identifying the product.
+    </ResponseField>
+    <ResponseField name="userId" type="string">
+      ID of the user who created the product.
+    </ResponseField>
+    <ResponseField name="title" type="string">
+      Display name of the product.
+    </ResponseField>
+    <ResponseField name="description" type="string">
+      Full product description.
+    </ResponseField>
+    <ResponseField name="price" type="number">
+      Base price before any discount.
+    </ResponseField>
+    <ResponseField name="minCant" type="number">
+      Minimum stock quantity. Defaults to `0`.
+    </ResponseField>
+    <ResponseField name="discount" type="string">
+      Discount status. Either the raw percentage string (e.g. `"20"`) set during an update, or `"Sin descuento"` if no discount has been applied.
+    </ResponseField>
+    <ResponseField name="priceDiscount" type="string">
+      Calculated discounted price as a string (e.g. `"23.992"`), or an empty string if no discount is active.
+    </ResponseField>
+    <ResponseField name="colorsSize" type="array">
+      Available color options.
+      <Expandable title="colorsSize item fields">
+        <ResponseField name="label" type="string">Human-readable color name (e.g. `"Rojo"`).</ResponseField>
+        <ResponseField name="value" type="string">Numeric string ID for the color (e.g. `"14"`).</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="sizes" type="array">
+      Available garment sizes.
+      <Expandable title="sizes item fields">
+        <ResponseField name="label" type="string">Size label (e.g. `"M"`).</ResponseField>
+        <ResponseField name="value" type="string">Numeric string ID for the size (e.g. `"3"`).</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="typeShirt" type="string">
+      Fit/style category. One of:
+
+      | Value | Description |
+      |---|---|
+      | `Overside` | Oversized fit |
+      | `CropTop` | Crop top cut |
+      | `Regular Fit` | Standard regular fit |
+      | `Semi-Overside` | Semi-oversized fit |
+      | `Hoodie` | Hooded sweatshirt |
+    </ResponseField>
+    <ResponseField name="productImg" type="array">
+      Array of image file paths stored on the server (e.g. `["storage/product/12image1.jpg"]`).
+    </ResponseField>
+    <ResponseField name="points" type="object">
+      Like/reaction counters for the product.
+      <Expandable title="points fields">
+        <ResponseField name="cant" type="number">Total number of likes the product has received.</ResponseField>
+        <ResponseField name="users" type="array">Array of user IDs who have liked this product.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">ISO 8601 timestamp of when the product was created.</ResponseField>
+    <ResponseField name="updatedAt" type="string">ISO 8601 timestamp of the most recent update.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination metadata for the current response.
+
+  <Expandable title="pagination fields">
+    <ResponseField name="pag" type="string">
+      The current page number as supplied in the path (or `undefined` if omitted).
+    </ResponseField>
+    <ResponseField name="perpage" type="number">
+      The number of items per page used for this request.
+    </ResponseField>
+    <ResponseField name="pags" type="number">
+      Total number of pages available, calculated as `⌈totalProducts / perpage⌉`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Cause |
+|---|---|
+| `500` | Unexpected server error. |
+
+### Example
+
+```bash
+# Fetch the first page with 10 products (default)
+curl -X POST https://your-domain.com/api/product/list-product
+
+# Fetch page 2 with 5 products per page
+curl -X POST https://your-domain.com/api/product/list-product/2/5
+
+# Authenticated request (token optional — same response shape)
+curl -X POST https://your-domain.com/api/product/list-product/1/20 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "Cargando productos...",
+  "status": true,
+  "data": [
+    {
+      "_id": "664a1f2e8b3c4d001e2f3a4b",
+      "userId": "663f0e1d7a2b3c000d1e2f3a",
+      "title": "Classic Logo Tee",
+      "description": "Comfortable everyday crew-neck t-shirt.",
+      "price": 29.99,
+      "minCant": 50,
+      "discount": "Sin descuento",
+      "priceDiscount": "",
+      "colorsSize": [
+        { "label": "Blanco", "value": "1" },
+        { "label": "Negro", "value": "2" }
+      ],
+      "sizes": [
+        { "label": "S", "value": "2" },
+        { "label": "M", "value": "3" },
+        { "label": "L", "value": "4" }
+      ],
+      "typeShirt": "Regular Fit",
+      "productImg": ["storage/product/12image1.jpg"],
+      "points": {
+        "cant": 5,
+        "users": ["663f0e1d7a2b3c000d1e2f3b"]
+      },
+      "createdAt": "2024-05-20T14:32:00.000Z",
+      "updatedAt": "2024-05-20T14:32:00.000Z"
+    }
+  ],
+  "pagination": {
+    "pag": "2",
+    "perpage": 5,
+    "pags": 8
+  }
+}
+```

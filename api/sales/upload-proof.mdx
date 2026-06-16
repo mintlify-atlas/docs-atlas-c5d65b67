@@ -1,0 +1,110 @@
+---
+title: "POST /api/sale/laod-proof/:saleId — Upload payment proof image"
+sidebarTitle: "Upload Proof"
+description: "Upload a payment screenshot to an existing order, moving it into payment validation status and alerting all admins."
+---
+
+After placing an order, the buyer must upload a payment proof image (e.g., a bank transfer screenshot) to allow administrators to verify the payment. This endpoint accepts a `multipart/form-data` request containing the image file(s), updates the sale's status to **Validando** (Under review), records the current date as `dateproof`, and sends an FCM push notification to every administrator with an active device token. Both the buyer who owns the order and any admin user are permitted to call this endpoint.
+
+<Note>
+  The endpoint URL contains a deliberate typo in the original source: it is `/laod-proof/` (not `/load-proof/`). Use the URL exactly as shown.
+</Note>
+
+## Endpoint
+
+```
+POST /api/sale/laod-proof/:saleId
+```
+
+## Authentication
+
+Requires a valid user **Token** in the request headers. The authenticated user must either own the sale (`userId` match) or have an admin role (`roles.value === "2"`).
+
+---
+
+## Path Parameters
+
+<ParamField path="saleId" type="string" required>
+  The MongoDB ObjectId of the sale to attach the payment proof to.
+</ParamField>
+
+---
+
+## Request Body
+
+This endpoint uses `multipart/form-data` encoding.
+
+<ParamField body="imgPay" type="file[]" required>
+  One or more image files representing the payment proof (e.g., a bank transfer receipt or payment screenshot). The server stores them under `storage/sale/` with a randomised filename prefix.
+</ParamField>
+
+---
+
+## Side Effects
+
+### Status Update
+
+The sale document is updated with:
+- `imgPay` — array of stored image paths
+- `dateproof` — current date formatted as `YYYY-M-D`
+- `status` — set to `{ name: "Validando", value: "4" }`
+
+### FCM Push Notification (Admin Broadcast)
+
+A push notification is sent to **all** admin users who have an active FCM token registered:
+
+| Field | Value |
+|---|---|
+| `title` | `"Nuevo comprobante de pago"` |
+| `body` | `"El usuario {name_client} con codigo {codeSale} subio su comprobante de pago"` |
+| `data.saleId` | The `saleId` from the path parameter |
+| `data.type` | `"dateproof_update"` |
+
+---
+
+## Response
+
+### 200 — Proof uploaded successfully
+
+```json
+{
+  "msj": "Excelente, en estos momentos estamos validando tu pago, te notificaremos por correo electrónico cuando tu pago haya sido validado",
+  "status": true,
+  "newSale": {
+    "_id": "664a1f2e9b3c4d001e2f3a10",
+    "userId": "663f8e1c2a4b5d001a9c7b22",
+    "codeSale": "SALE-20240519-4821",
+    "status": { "name": "Validando", "value": "4" },
+    "imgPay": ["42shirt_receipt.jpg"],
+    "dateproof": "2024-5-20",
+    "name_client": "Ana",
+    "total": 89.98
+  }
+}
+```
+
+<Note>
+  The `newSale` field in the response contains the sale document **before** the update was applied (MongoDB `findOneAndUpdate` without `{ new: true }`). The updated document can be retrieved via the list endpoints.
+</Note>
+
+### 403 — Permission denied
+
+```json
+{ "msj": "No tienes permisos para esta funcion", "status": false }
+```
+
+### 404 — Sale not found
+
+```json
+{ "msj": "Compra no encontrada", "status": false }
+```
+
+---
+
+## Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/laod-proof/664a1f2e9b3c4d001e2f3a10 \
+  -H "Authorization: Bearer <your_token>" \
+  -F "imgPay=@/path/to/payment_receipt.jpg"
+```

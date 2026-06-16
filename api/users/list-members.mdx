@@ -1,0 +1,149 @@
+---
+title: "POST /api/user/list-members — List all registered users"
+sidebarTitle: "List Members"
+description: "Retrieve a paginated list of all registered users. Requires a valid authentication token. Page and per-page size are set via URL path parameters."
+---
+
+This endpoint returns all users stored in the database, sorted by creation date in descending order (newest first). Pagination is controlled through optional URL path parameters rather than query strings. The `Paginate` middleware computes the correct `skip` and `limit` values from those path segments before the controller runs.
+
+<Warning>
+  This endpoint requires a valid JWT token in the `Authorization` header. Unauthenticated requests receive a `401` response.
+</Warning>
+
+## Endpoint
+
+```
+POST /api/user/list-members/:pag?/:perpage?
+```
+
+**Authentication:** Required — `Authorization: Bearer <token>`
+
+## Path Parameters
+
+<ParamField path="pag" type="number">
+  The page number to retrieve. Defaults to `1` when omitted. Page `1` starts at the first record (skip = 0). For pages greater than 1, the middleware computes `skip = (pag - 1) * perpage`.
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  The number of users to return per page. Defaults to `10` when omitted.
+</ParamField>
+
+## Request Body
+
+The request body is optional. No filter fields are currently applied by the active controller implementation. The body may be omitted or sent as an empty JSON object.
+
+## Pagination Behaviour
+
+The `Paginate` middleware translates path parameters into `req.body` properties before the controller runs:
+
+| Path parameter | Default | Computed value |
+|---|---|---|
+| `pag` | `1` | `req.params.pag` |
+| `perpage` | `10` | `req.body.limit` |
+| _(derived)_ | — | `req.body.skippag = (pag > 1 ? pag - 1 : 0) * perpage` |
+
+The total number of pages is returned in the response as `pagination.pags`, calculated as `Math.ceil(totalCount / perpage)`.
+
+## Response
+
+### 200 — Members loaded
+
+<ResponseField name="msj" type="string">
+  `"Cargando miembros"`
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of user documents for the requested page. Each document contains all fields stored on the `user` model (name, email, roles, status, address, phone_number, typeIdentification, identification, avatar, membership, codeseller, meseller, timestamps, etc.).
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination metadata for the current response.
+
+  <Expandable title="pagination fields">
+    <ResponseField name="pagination.pag" type="string | number">
+      The current page number, as passed in the URL path parameter.
+    </ResponseField>
+    <ResponseField name="pagination.perpage" type="number">
+      The number of items per page used for this response (sourced from `req.body.limit` set by the Paginate middleware).
+    </ResponseField>
+    <ResponseField name="pagination.pags" type="number">
+      Total number of available pages, calculated as `Math.ceil(totalCount / perpage)`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### 401 — No token provided
+
+```json
+{
+  "msj": "Sin autorizacion",
+  "status": false
+}
+```
+
+### 403 — Token expired or invalid
+
+```json
+{
+  "msj": "Sesion finalizada",
+  "status": false
+}
+```
+
+## Examples
+
+### Default — first page, 10 per page
+
+```bash
+curl -X POST https://your-api.com/api/user/list-members \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json"
+```
+
+### Page 2, 20 items per page
+
+```bash
+curl -X POST https://your-api.com/api/user/list-members/2/20 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json"
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Cargando miembros",
+  "status": true,
+  "data": [
+    {
+      "_id": "664a1f2e9b1c4a001f2e3d44",
+      "name": "Maria Lopez",
+      "email": "maria@example.com",
+      "roles": [{ "name": "usuario", "value": "1" }],
+      "status": [{ "name": "usuario activo", "value": "1" }],
+      "address": "Calle 10 #45-67",
+      "phone_number": "3001234567",
+      "typeIdentification": "CC",
+      "identification": "1020304050",
+      "avatar": [],
+      "codeseller": "XK9P2Q",
+      "meseller": "",
+      "createdAt": "2024-05-19T18:00:00.000Z",
+      "updatedAt": "2024-05-19T18:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "pag": "2",
+    "perpage": "20",
+    "pags": 5
+  }
+}
+```
+
+<Note>
+  The `pag` value in the pagination response object is the raw URL path parameter string. Cast it to a number in your client if you need to perform arithmetic on it.
+</Note>

@@ -1,0 +1,185 @@
+---
+title: "POST /api/sale/pay/:productId — Create a new sales order"
+sidebarTitle: "Create Order"
+description: "Place a purchase order for a product by providing shipping details, quantity, and selected product variants."
+---
+
+The **Create Order** endpoint initiates a new sales transaction for a given product. The authenticated user supplies the quantity to buy, color/size variant selections, and full customer shipping details. The server validates available stock, computes the order total using the discounted price when applicable, assigns a unique order code (`codeSale`), and saves the sale with an initial status of **Pendiente** (Awaiting payment). If a matching sale already exists for the same user, color, and size combination, the order is updated rather than duplicated.
+
+<Warning>
+  Stock is checked at order creation time. If `cantBuy` exceeds the product's available quantity (`minCant`), the request is rejected with HTTP 203.
+</Warning>
+
+## Endpoint
+
+```
+POST /api/sale/pay/:productId
+```
+
+## Authentication
+
+Requires a valid user **Token** in the request headers.
+
+---
+
+## Path Parameters
+
+<ParamField path="productId" type="string" required>
+  The MongoDB ObjectId of the product being purchased.
+</ParamField>
+
+---
+
+## Request Body
+
+<ParamField body="cantBuy" type="number" required>
+  Quantity of the product to purchase. Must be greater than `0` and must not exceed the product's current stock (`minCant`).
+</ParamField>
+
+<ParamField body="colorsSize" type="array | string" required>
+  The selected color variant(s). Accepts a JSON array of `{ label, value }` objects or a comma-separated string. Each entry is validated against the catalog's available color values.
+</ParamField>
+
+<ParamField body="sizes" type="array | string" required>
+  The selected size variant(s). Accepts a JSON array of `{ label, value }` objects or a comma-separated string. Each entry is validated against the catalog's available size values.
+</ParamField>
+
+<ParamField body="typeShirt" type="string">
+  Shirt cut/style. Corresponds to one of the product's defined shirt types (e.g., `"Regular Fit"`, `"Overside"`, `"Hoodie"`).
+</ParamField>
+
+<ParamField body="client" type="object" required>
+  Customer shipping and identification details.
+
+  <Expandable title="client fields">
+    <ParamField body="name_client" type="string">
+      Customer's first name.
+    </ParamField>
+    <ParamField body="lastName_client" type="string">
+      Customer's last name.
+    </ParamField>
+    <ParamField body="typeIdentification" type="string">
+      Type of government-issued ID (e.g., `"CC"`, `"CE"`, `"Passport"`).
+    </ParamField>
+    <ParamField body="identification" type="string">
+      The ID number corresponding to `typeIdentification`.
+    </ParamField>
+    <ParamField body="phone_number" type="string">
+      Customer's contact phone number.
+    </ParamField>
+    <ParamField body="address" type="string">
+      Full delivery street address.
+    </ParamField>
+    <ParamField body="email" type="string">
+      Customer's email address for order notifications.
+    </ParamField>
+    <ParamField body="zipCode" type="string">
+      Postal / zip code for the delivery location.
+    </ParamField>
+    <ParamField body="city" type="string">
+      City for the delivery address.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+## Pricing Logic
+
+- If the product has a `priceDiscount` value set, that price is used as the unit price.
+- Otherwise, the standard `price` field is used.
+- `total = unitPrice × cantBuy`
+
+---
+
+## Response
+
+### 200 — Order created successfully
+
+```json
+{
+  "msj": "Compra realizada con exito. Para validar tu compra carga tu comprobante de pago",
+  "status": true,
+  "saving": {
+    "_id": "664a1f2e9b3c4d001e2f3a10",
+    "userId": "663f8e1c2a4b5d001a9c7b22",
+    "total": 89.98,
+    "cantBuy": 2,
+    "codeSale": "SALE-20240519-4821",
+    "status": { "name": "Pendiente", "value": "2" },
+    "colorsSize": [{ "label": "Negro", "value": "negro" }],
+    "sizes": [{ "label": "M", "value": "m" }],
+    "typeShirt": "Regular Fit",
+    "name_client": "Ana",
+    "lastName_client": "Torres",
+    "typeIdentification": "CC",
+    "identification": "1023456789",
+    "phone_number": "3001234567",
+    "address": "Calle 45 # 12-34",
+    "email": "ana.torres@example.com",
+    "zipCode": "110111",
+    "city": "Bogotá",
+    "products": [
+      {
+        "id": "663c2a1b5f7e3d001b8a4c55",
+        "title": "Camiseta Clásica",
+        "price": 44.99,
+        "subtotal": 89.98,
+        "productImg": ["https://example.com/img/shirt.jpg"]
+      }
+    ],
+    "deliveryStatus": [],
+    "imgPay": [],
+    "dateproof": "",
+    "createdAt": "2024-05-19T14:30:00.000Z",
+    "updatedAt": "2024-05-19T14:30:00.000Z"
+  }
+}
+```
+
+### 203 — Validation error
+
+```json
+{ "msj": "La cantidad a comprar debe ser mayor a 0", "status": false }
+```
+
+```json
+{ "msj": "Stock no disponible", "status": false }
+```
+
+### 404 — Not found
+
+```json
+{ "msj": "El usuario con el que intentas comprar no se encuentra activo", "status": false }
+```
+
+```json
+{ "msj": "Producto no encontrado", "status": false }
+```
+
+---
+
+## Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/pay/663c2a1b5f7e3d001b8a4c55 \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cantBuy": 2,
+    "colorsSize": [{ "label": "Negro", "value": "negro" }],
+    "sizes": [{ "label": "M", "value": "m" }],
+    "typeShirt": "Regular Fit",
+    "client": {
+      "name_client": "Ana",
+      "lastName_client": "Torres",
+      "typeIdentification": "CC",
+      "identification": "1023456789",
+      "phone_number": "3001234567",
+      "address": "Calle 45 # 12-34",
+      "email": "ana.torres@example.com",
+      "zipCode": "110111",
+      "city": "Bogotá"
+    }
+  }'
+```

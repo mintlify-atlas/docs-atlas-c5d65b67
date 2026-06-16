@@ -1,0 +1,134 @@
+---
+title: "POST /api/sale/status-delivery/:saleId — Add delivery tracking update"
+sidebarTitle: "Delivery Tracking"
+description: "Append a timestamped delivery event to an order's tracking history and push a real-time notification to the buyer."
+---
+
+The **Delivery Tracking** endpoint lets administrators append granular delivery events to an order's history. Each call pushes a new entry into the sale's `deliveryStatus` array with the provided description, an optional detail note, the current date, and a formatted time. The buyer is immediately notified via an FCM push notification. This allows clients to see a full chronological log of their shipment progress.
+
+## Endpoint
+
+```
+POST /api/sale/status-delivery/:saleId
+```
+
+## Authentication
+
+Requires a valid user **Token** in the request headers.
+
+---
+
+## Path Parameters
+
+<ParamField path="saleId" type="string" required>
+  The MongoDB ObjectId of the sale to add a delivery update to.
+</ParamField>
+
+---
+
+## Request Body
+
+<ParamField body="description" type="string" required>
+  A short summary of the delivery event (e.g., `"Paquete en camino"`, `"Entregado en portería"`). This field is also used as the push notification body.
+</ParamField>
+
+<ParamField body="detail" type="string">
+  An optional supplementary note about the delivery event (e.g., a carrier update, location note, or staff comment).
+</ParamField>
+
+---
+
+## Delivery Entry Format
+
+Each entry appended to `sale.deliveryStatus` contains the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `description` | string | The event summary from the request body. |
+| `detail` | string | The optional detail note from the request body. |
+| `date` | string | Current date formatted as `YYYY-M-D` (e.g., `"2024-5-20"`). |
+| `timeHour` | string | Current time formatted as `HH:MM AM/PM` (e.g., `"02:45 PM"`), using `en-US` locale. |
+
+---
+
+## Side Effects
+
+### FCM Push Notification (Buyer)
+
+After the delivery entry is saved, the buyer receives a push notification if they have an active FCM token:
+
+| Field | Value |
+|---|---|
+| `title` | `"Actualizacion en la entrega"` |
+| `body` | `"{description} - {detail}"` |
+| `data.saleId` | The `saleId` from the path parameter |
+| `data.type` | `"delivery_update"` |
+
+---
+
+## Response
+
+### 200 — Delivery status updated
+
+```json
+{ "msj": "Estado de entrega actualizado...", "status": true }
+```
+
+### 403 — Missing required parameter
+
+```json
+{ "msj": "Sin parametro de venta", "status": false }
+```
+
+```json
+{ "msj": "Completa todos los campos para continuar", "status": false }
+```
+
+---
+
+## Example `deliveryStatus` Array
+
+After several tracking updates, the `deliveryStatus` array on the sale document looks like this:
+
+```json
+"deliveryStatus": [
+  {
+    "description": "Pedido confirmado",
+    "detail": "Tu pedido ha sido recibido y está siendo procesado.",
+    "date": "2024-5-19",
+    "timeHour": "10:30 AM"
+  },
+  {
+    "description": "Paquete despachado",
+    "detail": "Salió de nuestra bodega central en Bogotá.",
+    "date": "2024-5-20",
+    "timeHour": "08:15 AM"
+  },
+  {
+    "description": "En camino",
+    "detail": "El transportador está en ruta hacia tu dirección.",
+    "date": "2024-5-21",
+    "timeHour": "02:45 PM"
+  },
+  {
+    "description": "Entregado",
+    "detail": "Paquete recibido en portería.",
+    "date": "2024-5-21",
+    "timeHour": "04:10 PM"
+  }
+]
+```
+
+---
+
+## Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/status-delivery/664a1f2e9b3c4d001e2f3a10 \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Paquete despachado",
+    "detail": "Salió de nuestra bodega central en Bogotá."
+  }'
+```

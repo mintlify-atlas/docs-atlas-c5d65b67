@@ -1,0 +1,198 @@
+---
+title: "POST /api/notification/register-token — Register FCM device token"
+sidebarTitle: "Register Token"
+description: "Register a Firebase Cloud Messaging device token to enable push notifications for order updates, delivery tracking, and payment events."
+---
+
+When a user logs in or your app starts up, call this endpoint to register the device's Firebase Cloud Messaging (FCM) token with the server. The server stores the token and uses it to push real-time notifications directly to the device — no polling required. If a token already exists for the given `userId`, it is updated in place and reactivated; otherwise a new record is created.
+
+---
+
+## Endpoint
+
+```
+POST /api/notification/register-token
+```
+
+**Authentication:** No authentication middleware is applied to this route. The caller is trusted to supply a valid `userId` that matches the authenticated session on the client side.
+
+---
+
+## Request body
+
+<ParamField body="userId" type="string" required>
+  The unique identifier of the user whose device is being registered. Used as the lookup key — only one active FCM token is stored per `userId` at a time.
+</ParamField>
+
+<ParamField body="fcmToken" type="string" required>
+  The Firebase Cloud Messaging device token issued by the Firebase SDK on the client. This is a long opaque string that uniquely identifies the device/app installation. Tokens can be rotated by Firebase at any time; send the latest token whenever a new one is generated.
+</ParamField>
+
+<Note>
+  FCM tokens are **device-specific** — each physical device or browser instance gets its own token. Tokens can be invalidated or refreshed by the Firebase SDK at any time (e.g. after an app reinstall or a token rotation event). Re-call this endpoint with the new token whenever `onTokenRefresh` fires in your app so that the server always holds a valid, active token.
+</Note>
+
+---
+
+## How the server stores the token
+
+Internally, the server performs a MongoDB `findOneAndUpdate` with `upsert: true` on the `userId` field:
+
+- **Existing user** — the stored `fcmToken` is overwritten and `active` is set back to `true`.
+- **New user** — a fresh `NotificationToken` document is created with `active` defaulting to `true`.
+
+The `active` flag is managed entirely by the server; you do not need to send it in the request body.
+
+---
+
+## Response
+
+### 200 — Success
+
+```json
+{
+  "success": true
+}
+```
+
+<ResponseField name="success" type="boolean">
+  Always `true` when the token has been successfully stored or updated.
+</ResponseField>
+
+### 400 — Missing fields
+
+Returned when either `userId` or `fcmToken` is absent from the request body.
+
+```json
+{
+  "error": "Datos incompletos"
+}
+```
+
+<ResponseField name="error" type="string">
+  A human-readable error message. `"Datos incompletos"` means "incomplete data".
+</ResponseField>
+
+### 500 — Internal server error
+
+Returned when an unexpected error occurs (e.g. a database failure).
+
+```json
+{
+  "error": "Error interno"
+}
+```
+
+<ResponseField name="error" type="string">
+  A human-readable error message indicating a server-side problem. Check server logs for the full stack trace.
+</ResponseField>
+
+---
+
+## When to call this endpoint
+
+Call `POST /api/notification/register-token` in the following situations:
+
+1. **User login** — immediately after a successful sign-in, fetch the current FCM token and register it so the server can associate it with the authenticated user.
+2. **App startup** — on each launch, retrieve the device token and re-register it to ensure it is still active and up-to-date.
+3. **Token refresh** — whenever the Firebase SDK fires a token-refresh event, register the new token immediately.
+
+<Tip>
+  Register the token even if it hasn't visibly changed. The server upserts the record, so a redundant call is safe and guarantees the token stays `active`.
+</Tip>
+
+---
+
+## What the token is used for
+
+Once registered, the server uses the FCM token to deliver push notifications for the following events:
+
+| Event | Who is notified |
+|---|---|
+| Order status changes (e.g. confirmed → shipped → delivered) | Customer whose order changed |
+| Delivery tracking updates (driver location, ETA changes) | Customer awaiting delivery |
+| New payment proof uploads | Admin users holding an admin FCM token |
+
+---
+
+## Getting an FCM token on the client
+
+Before calling this endpoint you need to retrieve the token from the Firebase SDK. The exact API differs by platform, but the pattern is the same across all Firebase client libraries:
+
+```javascript
+// Generic Firebase JS SDK example (Web / React Native with @react-native-firebase)
+import { getMessaging, getToken, onTokenRefresh } from "firebase/messaging";
+
+const messaging = getMessaging();
+
+// Request permission and fetch the current token
+async function registerDeviceToken(userId) {
+  const currentToken = await getToken(messaging, {
+    vapidKey: "YOUR_VAPID_KEY", // Web only; omit for native apps
+  });
+
+  if (!currentToken) {
+    console.warn("No FCM token available. Request notification permission first.");
+    return;
+  }
+
+  // Send the token to your server
+  await fetch("/api/notification/register-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, fcmToken: currentToken }),
+  });
+
+  console.log("FCM token registered:", currentToken);
+}
+
+// Re-register whenever Firebase rotates the token
+onTokenRefresh(messaging, async () => {
+  const refreshedToken = await getToken(messaging);
+  await fetch("/api/notification/register-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId: currentUserId, fcmToken: refreshedToken }),
+  });
+  console.log("FCM token refreshed and re-registered.");
+});
+```
+
+---
+
+## cURL example
+
+```bash
+curl --request POST \
+  --url /api/notification/register-token \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "userId": "user_abc123",
+    "fcmToken": "eKx9z2Y...long-fcm-token-string...A1b2C3"
+  }'
+```
+
+**Success response:**
+
+```json
+{
+  "success": true
+}
+```
+
+**Error response (missing field):**
+
+```bash
+curl --request POST \
+  --url /api/notification/register-token \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "userId": "user_abc123"
+  }'
+```
+
+```json
+{
+  "error": "Datos incompletos"
+}
+```

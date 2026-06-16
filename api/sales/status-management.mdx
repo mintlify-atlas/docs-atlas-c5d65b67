@@ -1,0 +1,139 @@
+---
+title: "POST /api/sale/status-change/:saleId — Update order payment status"
+sidebarTitle: "Status Change"
+description: "Change a sale's payment status, optionally decrement product stock on payment, and notify the buyer via push notification."
+---
+
+The **Status Change** endpoint allows administrators to move a sale through its payment lifecycle. Submitting a new `status` object updates the sale record, triggers relevant business logic (such as decrementing product stock when a payment is confirmed), and sends an FCM push notification to the buyer. Once an order reaches **Entregado** (Delivered) status, it becomes immutable — further status changes are rejected.
+
+<Warning>
+  A sale already in **Entregado** (`value: "5"`) status cannot be updated again. Any attempt returns HTTP 203.
+</Warning>
+
+## Endpoint
+
+```
+POST /api/sale/status-change/:saleId
+```
+
+## Authentication
+
+Requires a valid user **Token** in the request headers.
+
+---
+
+## Path Parameters
+
+<ParamField path="saleId" type="string" required>
+  The MongoDB ObjectId of the sale whose status is being updated.
+</ParamField>
+
+---
+
+## Request Body
+
+<ParamField body="status" type="object" required>
+  An object describing the new status to assign to the sale.
+
+  <Expandable title="status fields">
+    <ParamField body="name" type="string" required>
+      Human-readable status label (e.g., `"Pagado"`). Must correspond to one of the defined status values below.
+    </ParamField>
+    <ParamField body="value" type="string" required>
+      Numeric string identifier for the status (e.g., `"1"`). Must correspond to one of the defined status values below.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+## Valid Status Values
+
+<Note>
+  The following are the only recognised status combinations. Both `name` and `value` must be provided together as a pair.
+
+  | `name` | `value` | Description |
+  |---|---|---|
+  | `"Pagado"` | `"1"` | Payment confirmed. Decrements product stock (`minCant`) by `cantBuy`. |
+  | `"Pendiente"` | `"2"` | Awaiting payment from the buyer. This is the initial status set at order creation. |
+  | `"Cancelado"` | `"3"` | Order has been cancelled. |
+  | `"Validando"` | `"4"` | Payment proof submitted and under admin review. Set automatically by the Upload Proof endpoint. |
+  | `"Entregado"` | `"5"` | Order has been delivered. **Terminal state — cannot be changed once set.** |
+</Note>
+
+---
+
+## Business Logic
+
+### Stock Decrement (Pagado)
+
+When the new status is `{ name: "Pagado", value: "1" }`, the server uses `$inc` to subtract `cantBuy` from the corresponding product's `minCant` field in the `products` collection.
+
+### FCM Push Notification (Buyer)
+
+After every successful status update, the buyer receives a push notification if they have an active FCM token:
+
+| Field | Value |
+|---|---|
+| `title` | `"Actualizacion de tu pedido"` |
+| `body` | `"El estado de tu compra con codigo {codeSale} a cambiado a {status.name}"` |
+| `data.saleId` | The `saleId` from the path parameter |
+| `data.type` | `"status_update"` |
+
+---
+
+## Response
+
+### 200 — Status updated
+
+```json
+{ "msj": "Estado de compra actualizado...", "status": true }
+```
+
+### 203 — Already delivered
+
+```json
+{ "msj": "Esta venta ya se encuentra en estado de entrega", "status": false }
+```
+
+### 403 — Sale not found or missing status
+
+```json
+{ "msj": "Venta no encontrada", "status": false }
+```
+
+```json
+{ "msj": "Completa todos los campos para continuar", "status": false }
+```
+
+---
+
+## Example Request
+
+```bash
+curl -X POST https://your-api.com/api/sale/status-change/664a1f2e9b3c4d001e2f3a10 \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": {
+      "name": "Pagado",
+      "value": "1"
+    }
+  }'
+```
+
+---
+
+## Cancelling an Order
+
+```bash
+curl -X POST https://your-api.com/api/sale/status-change/664a1f2e9b3c4d001e2f3a10 \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": {
+      "name": "Cancelado",
+      "value": "3"
+    }
+  }'
+```

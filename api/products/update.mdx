@@ -1,0 +1,167 @@
+---
+title: "POST /api/product/update/:productId — Update an existing product"
+sidebarTitle: "Update Product"
+description: "Update a product's fields, replace its images, and apply a percentage discount to calculate a discounted price. Admin only."
+---
+
+The update endpoint allows administrators to modify any field of an existing product. All fields are optional — only the values provided in the request body will overwrite the stored data. If new images are uploaded they replace the existing set; if no image files are sent the current images are preserved. When a `discount` percentage is supplied, a `priceDiscount` is automatically calculated and stored alongside the raw percentage value.
+
+<Warning>
+  This endpoint requires both a user token (`Token`) and an admin token (`TokenAdmin`). Requests authenticated with a user-only token will be rejected.
+</Warning>
+
+---
+
+## POST /api/product/update/:productId
+
+**Auth:** Token + TokenAdmin required  
+**Content-Type:** `multipart/form-data`
+
+### Path parameters
+
+<ParamField path="productId" type="string" required>
+  The MongoDB ObjectId of the product to update.
+</ParamField>
+
+### Request fields
+
+<ParamField body="title" type="string">
+  New display name for the product.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Updated product description.
+</ParamField>
+
+<ParamField body="price" type="number">
+  Updated base price. Required when `discount` is also provided, as `priceDiscount` is derived from this value.
+</ParamField>
+
+<ParamField body="minCant" type="number">
+  Updated minimum stock quantity. Defaults to `0` if omitted.
+</ParamField>
+
+<ParamField body="colorsSize" type="string">
+  Updated color options. Accepts a JSON array of `{ label, value }` objects or a comma-separated string of known color labels. If omitted, the stored colors are replaced with an empty array.
+
+  Known color labels: `Blanco`, `Negro`, `Gris oscuro`, `Gris claro`, `Azul celeste`, `Azul marino`, `Azul rey`, `Beige`, `Cafe claro`, `Cafe oscuro`, `Verde militar`, `Verde bosque`, `Verde menta`, `Rojo`, `Vino`, `Rosa pastel`, `Fucsia`, `Amarillo mostaza`, `Amarillo crema`, `Naranja`, `Lila`, `Morado`, `Turquesa`, `Amarillo`.
+</ParamField>
+
+<ParamField body="sizes" type="string">
+  Updated size options. Accepts a JSON array of `{ label, value }` objects or a comma-separated string of known size labels. If omitted, the stored sizes are replaced with an empty array.
+
+  Known size labels: `XS`, `S`, `M`, `L`, `XL`, `XXL/2XL`, `XXXL/3XL`.
+</ParamField>
+
+<ParamField body="typeShirt" type="string">
+  Updated shirt type. Must be one of: `Overside`, `CropTop`, `Regular Fit`, `Semi-Overside`, `Hoodie`.
+</ParamField>
+
+<ParamField body="discount" type="string">
+  Discount as a percentage value supplied as a string (e.g. `"20"` for 20 %). When this field is present and `price` is a finite number, the server computes:
+
+  ```
+  priceDiscount = price × (1 − discount / 100)
+  ```
+
+  The computed `priceDiscount` is stored on the product. The raw `discount` string is also persisted.
+
+  <Note>
+    The `discount` field on the Product schema stores the raw percentage string sent here, not the enum `"Sin descuento"` / `"Con descuento"` value. `priceDiscount` holds the calculated numeric result as a string.
+  </Note>
+</ParamField>
+
+<ParamField body="productImg" type="file[]">
+  Replacement product images. Upload one or more files under the `productImg` field key. If no files are uploaded, the existing images are kept unchanged.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"Producto actualizado correctamente"` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="productUpdate" type="object">
+  The full updated product document fetched after the update is applied.
+
+  <Expandable title="productUpdate fields">
+    <ResponseField name="_id" type="string">MongoDB ObjectId of the product.</ResponseField>
+    <ResponseField name="userId" type="string">ID of the user who originally created the product.</ResponseField>
+    <ResponseField name="title" type="string">Updated product title.</ResponseField>
+    <ResponseField name="description" type="string">Updated product description.</ResponseField>
+    <ResponseField name="price" type="number">Updated base price.</ResponseField>
+    <ResponseField name="minCant" type="number">Minimum stock quantity.</ResponseField>
+    <ResponseField name="discount" type="string">Raw discount percentage string as supplied (e.g. `"20"`).</ResponseField>
+    <ResponseField name="priceDiscount" type="string">Calculated discounted price as a string (e.g. `"23.992"`).</ResponseField>
+    <ResponseField name="colorsSize" type="array">Array of `{ label, value }` color objects.</ResponseField>
+    <ResponseField name="sizes" type="array">Array of `{ label, value }` size objects.</ResponseField>
+    <ResponseField name="typeShirt" type="string">Updated shirt type.</ResponseField>
+    <ResponseField name="productImg" type="array">Array of image paths (updated or original).</ResponseField>
+    <ResponseField name="points" type="object">Like counters: `{ cant, users[] }`.</ResponseField>
+    <ResponseField name="createdAt" type="string">Original creation timestamp (ISO 8601).</ResponseField>
+    <ResponseField name="updatedAt" type="string">Timestamp of this update (ISO 8601).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | `msj` | Cause |
+|---|---|---|
+| `403` | `"Sin parametro de producto"` | `productId` path parameter is missing. |
+| `404` | `"Producto no encontrado"` | No product exists for the given `productId`. |
+| `400` | _(validation error message)_ | One or more resolved color or size values is invalid. |
+| `500` | _(error object)_ | Unexpected server error. |
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/product/update/664a1f2e8b3c4d001e2f3a4b \
+  -H "Authorization: Bearer <token>" \
+  -F "title=Classic Logo Tee — Summer Edition" \
+  -F "description=Lightweight version for the warmer months." \
+  -F "price=29.99" \
+  -F "discount=20" \
+  -F 'colorsSize=[{"label":"Blanco","value":"1"},{"label":"Azul celeste","value":"5"}]' \
+  -F 'sizes=[{"label":"S","value":"2"},{"label":"M","value":"3"},{"label":"L","value":"4"},{"label":"XL","value":"5"}]' \
+  -F "typeShirt=Regular Fit" \
+  -F "minCant=100" \
+  -F "productImg=@/path/to/new-image.jpg"
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "Producto actualizado correctamente",
+  "status": true,
+  "productUpdate": {
+    "_id": "664a1f2e8b3c4d001e2f3a4b",
+    "userId": "663f0e1d7a2b3c000d1e2f3a",
+    "title": "Classic Logo Tee — Summer Edition",
+    "description": "Lightweight version for the warmer months.",
+    "price": 29.99,
+    "minCant": 100,
+    "discount": "20",
+    "priceDiscount": "23.992",
+    "colorsSize": [
+      { "label": "Blanco", "value": "1" },
+      { "label": "Azul celeste", "value": "5" }
+    ],
+    "sizes": [
+      { "label": "S", "value": "2" },
+      { "label": "M", "value": "3" },
+      { "label": "L", "value": "4" },
+      { "label": "XL", "value": "5" }
+    ],
+    "typeShirt": "Regular Fit",
+    "productImg": ["storage/product/34new-image.jpg"],
+    "points": { "cant": 12, "users": ["663f...", "664b..."] },
+    "createdAt": "2024-05-20T14:32:00.000Z",
+    "updatedAt": "2024-05-21T09:15:00.000Z"
+  }
+}
+```

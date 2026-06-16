@@ -1,0 +1,134 @@
+---
+title: "Connect the Ecommerce Delivery API to MongoDB"
+sidebarTitle: "Database"
+description: "Set up MongoDB with Mongoose for the Ecommerce Delivery API, including connection configuration and a reference for all four data models."
+---
+
+The Ecommerce Delivery API persists all application data — users, products, sales, and push-notification tokens — in a MongoDB database accessed through [Mongoose](https://mongoosejs.com/). A single environment variable (`MONGODB_URL`) is all that is required to establish the connection; no additional Mongoose configuration is needed for most deployments.
+
+## Connection string format
+
+Set `MONGODB_URL` in your `.env` file to a valid MongoDB connection URI. When using MongoDB Atlas the string follows this pattern:
+
+```
+mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/<dbname>
+```
+
+| Placeholder | Description |
+|-------------|-------------|
+| `<user>`    | Database user created in Atlas |
+| `<pass>`    | Password for that user (URL-encode special characters) |
+| `<cluster>` | Atlas cluster hostname, e.g. `cluster0.abc12.mongodb.net` |
+| `<dbname>`  | Name of the database to use, e.g. `ecommerce` |
+
+<Note>
+  [MongoDB Atlas](https://www.mongodb.com/atlas) is the recommended hosting option. The free M0 tier is sufficient for development and light production workloads. Make sure to whitelist your server's IP address (or `0.0.0.0/0` for testing) in the Atlas Network Access settings.
+</Note>
+
+## How the connection works
+
+The `MongoDB()` function in `src/database/mongoDB.js` calls `mongoose.connect()` with the URI from `process.env.MONGODB_URL`. It logs a success message to the console when the connection is established, or prints the error details if it fails:
+
+```javascript
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const DB_URI = process.env.MONGODB_URL;
+mongoose.set("strictQuery", true);
+
+export const MongoDB = () => {
+  mongoose
+    .connect(DB_URI, {})
+    .then(() => console.log("✅   Connected to MongoDB"))
+    .catch((err) => console.error("❌ Error connected to MongoDB → ", err));
+};
+```
+
+`strictQuery: true` means Mongoose will filter out query conditions that do not have a corresponding field in the schema, which prevents accidental full-collection scans from typos in query keys.
+
+Call `MongoDB()` once during server startup, before registering any routes that depend on the database.
+
+## Data models
+
+The API defines four Mongoose models. Every schema is created with `{ timestamps: true }`, which automatically adds `createdAt` and `updatedAt` fields to every document.
+
+### User
+
+Registered platform users. Passwords are hashed with **bcrypt** before storage.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | `String` | Display name |
+| `email` | `String` | Login email address |
+| `password` | `String` | bcrypt hash |
+| `avatar` | `Array` | Uploaded avatar image objects |
+| `roles` | `[{ name, value }]` | Role assignments (1 = user, 2 = admin, 3 = promotor, 4 = guest, 5 = company) |
+| `status` | `[{ name, value }]` | Account status (1 = active, 2 = pending confirmation, 3 = inactive) |
+| `codeActivate` | `String` | 6-digit code sent by email for account verification |
+| `codeActivateExpires` | `Date` | Expiry timestamp for `codeActivate` |
+| `codeActivateConfirm` | `String` | Confirmation state of the activation code |
+| `codePass` | `String` | 6-digit code for password recovery |
+| `codePassConfirm` | `String` | Confirmation state of the password-recovery code |
+| `address` | `String` | Optional shipping address |
+| `phone_number` | `String` | Optional contact phone number |
+| `typeIdentification` | `String` | Optional government ID type |
+| `identification` | `String` | Optional government ID number |
+| `token` | `String` | Active session token |
+
+### Product
+
+Clothing items listed for sale.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `title` | `String` | Product name |
+| `description` | `String` | Long-form description |
+| `price` | `Number` | Full price |
+| `minCant` | `Number` | Minimum purchasable quantity (default `0`) |
+| `discount` | `String` | `"Sin descuento"` or `"Con descuento"` |
+| `priceDiscount` | `String` | Discounted price when applicable |
+| `colorsSize` | `[{ label, value }]` | Available colour options |
+| `sizes` | `[{ label, value }]` | Available size options |
+| `typeShirt` | `String` | Garment cut: `Overside`, `CropTop`, `Regular Fit`, `Semi-Overside`, or `Hoodie` |
+| `productImg` | `Array` | Uploaded product image objects |
+| `points` | `{ cant, users[] }` | Like/point counter and list of users who have liked the product |
+| `userId` | `String` | ID of the admin who created the product |
+
+### Sale
+
+Purchase orders created when a user buys a product.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `userId` | `String` | Buyer's user ID |
+| `total` | `Number` | Total order amount |
+| `products` | `[{ id, title, price, subtotal, productImg, discount, priceDiscount }]` | Snapshot of purchased items |
+| `status` | `{ name, value }` | Payment status (1 = paid, 2 = pending, 3 = cancelled, 4 = validating, 5 = delivered) |
+| `deliveryStatus` | `[{ description, date, timeHour, detail }]` | Ordered log of delivery tracking events |
+| `codeSale` | `String` | Unique sale reference code |
+| `imgPay` | `Array` | Payment proof image objects |
+| `name_client` | `String` | Buyer's full name at time of purchase |
+| `lastName_client` | `String` | Buyer's last name at time of purchase |
+| `address` | `String` | Delivery address |
+| `city` | `String` | Delivery city |
+| `zipCode` | `String` | Postal code |
+| `phone_number` | `String` | Contact number for delivery |
+| `email` | `String` | Buyer's email at time of purchase |
+| `colorsSize` | `[{ label, value }]` | Colour selection for the order |
+| `sizes` | `[{ label, value }]` | Size selection for the order |
+| `typeShirt` | `String` | Garment cut of the ordered item |
+| `cantBuy` | `Number` | Quantity purchased |
+| `dateproof` | `String` | Date of the payment proof |
+| `codeseller` | `String` | Seller reference code if applicable |
+
+### NotificationToken
+
+FCM device tokens used to send push notifications via Firebase Cloud Messaging.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `userId` | `String` | ID of the owning user — **required** |
+| `fcmToken` | `String` | Firebase Cloud Messaging device token — **required** |
+| `active` | `Boolean` | Whether the token is currently active (default `true`) |

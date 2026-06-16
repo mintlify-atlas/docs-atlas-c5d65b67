@@ -1,0 +1,123 @@
+---
+title: "POST /api/user/create — Register a new user"
+sidebarTitle: "Register"
+description: "Create a new user account by providing a name, email, and password. A verification email is sent automatically after registration."
+---
+
+This endpoint creates a new user account in the system. Once submitted, the account is set to a `Pendiente de confirmacion` (pending confirmation) status until the user verifies their email address using the code sent to their inbox. Passwords are hashed with bcrypt before being stored.
+
+## Endpoint
+
+```
+POST /api/user/create
+```
+
+**Authentication:** None required
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  The full name of the user.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  The user's email address. Stored in lowercase. Must not already be registered in the system.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password. Encrypted with bcrypt before storage.
+</ParamField>
+
+<ParamField body="meseller" type="string">
+  Optional referral code of the seller who invited this user. When provided, it must match an existing user's `codeseller` value. If omitted, the field is stored as an empty string.
+</ParamField>
+
+## Response
+
+### 200 — Account created
+
+The account was created successfully and a verification email was dispatched.
+
+<ResponseField name="msj" type="string">
+  Confirmation message: `"Cuenta creada correctamente"`.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="newUser" type="object">
+  The newly created user document, including generated fields such as `codeseller`, `codeActivate`, and the default `status` and `roles` arrays.
+</ResponseField>
+
+### 403 — Missing required fields
+
+Returned when `name`, `email`, or `password` are absent from the request body.
+
+```json
+{
+  "msj": "Completa todos los campos",
+  "status": false
+}
+```
+
+### 203 — Email already registered
+
+Returned when the submitted email address already exists in the database.
+
+```json
+{
+  "msj": "Correo ya registrado,intenta con uno diferente",
+  "status": false
+}
+```
+
+### 404 — Invalid seller code
+
+Returned when a `meseller` value is supplied but does not match any existing user's `codeseller`.
+
+```json
+{
+  "msj": "Codigo inexistente. ¿Deseas cambiarlo?",
+  "status": false
+}
+```
+
+<Note>
+  After a successful registration, a 6-digit verification code is emailed to the address provided. The account status remains `Pendiente de confirmacion` (status value `"2"`) until the code is confirmed via `POST /api/user/verify-account`. The code expires after **24 hours**.
+</Note>
+
+## Example
+
+```bash
+curl -X POST https://your-api.com/api/user/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Maria Lopez",
+    "email": "maria@example.com",
+    "password": "securePass123",
+    "meseller": "ABC123"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Cuenta creada correctamente",
+  "status": true,
+  "newUser": {
+    "_id": "664a1f2e9b1c4a001f2e3d44",
+    "name": "Maria Lopez",
+    "email": "maria@example.com",
+    "roles": [{ "name": "usuario", "value": "1" }],
+    "status": [{ "name": "Pendiente de confirmacion", "value": "2" }],
+    "codeseller": "XK9P2Q",
+    "meseller": "ABC123",
+    "codeActivate": "748291",
+    "codeActivateExpires": "2024-05-20T18:00:00.000Z",
+    "createdAt": "2024-05-19T18:00:00.000Z",
+    "updatedAt": "2024-05-19T18:00:00.000Z"
+  }
+}
+```

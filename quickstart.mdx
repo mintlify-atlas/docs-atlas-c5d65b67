@@ -1,47 +1,215 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get started with the Ecommerce Delivery API"
+sidebarTitle: "Quickstart"
+description: "Clone the repo, configure your environment variables, start the dev server, and make your first authenticated API call."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you through running the Ecommerce Delivery API locally and completing the full user onboarding flow — from registration to a token-authenticated request — in under ten minutes.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+
+  <Step title="Clone the repo and install dependencies">
+    Clone the repository and install all Node.js dependencies with npm.
 
     ```bash
-    npm install your-package
+    git clone https://github.com/fredy-rizo/ecommerce-delivery.git
+    cd ecommerce-delivery
+    npm install
     ```
+
+    The project uses ES Modules (`"type": "module"` in `package.json`), so Node.js 18 or later is recommended.
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Configure your environment variables">
+    Copy the provided example file and fill in your values.
 
     ```bash
-    your-cli init
+    cp example.env .env
     ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+    Open `.env` and set each variable:
 
     ```bash
-    your-cli start
+    # Server
+    PORT=3000
+
+    # JWT signing secret — choose a long, random string
+    SECRET=your_super_secret_key
+
+    # MongoDB connection string
+    MONGODB_URL=mongodb://localhost:27017/ecommerce-delivery
+
+    # Google Cloud Storage bucket name
+    NAMEGOOGLECLOUD=your-gcs-bucket-name
+
+    # OAuth credentials (used by Nodemailer / Google APIs)
+    CLIENT_ID=your_google_client_id
+    CLIENT_SECRET=your_google_client_secret
+    CLIENT_URL=http://localhost:3000
+
+    # SMTP credentials for Nodemailer
+    USER_EMAIL=your_email@example.com
+    PASS_EMAIL=your_email_password
     ```
+
+    <Note>
+      `SECRET` is used to sign and verify every JWT. Keep it out of version control and choose a value that is hard to guess.
+    </Note>
+
+    <Warning>
+      The server will start without `MONGODB_URL`, but all database operations will fail. Make sure MongoDB is running and reachable before proceeding.
+    </Warning>
   </Step>
+
+  <Step title="Start the development server">
+    Run the dev script, which uses **nodemon** to watch for file changes and restart automatically.
+
+    ```bash
+    npm run dev
+    ```
+
+    A successful start looks like this:
+
+    ```
+    Server-startup → 42.17.ms
+    🔷   Server on port 3000
+    ```
+
+    The API is now listening at `http://localhost:3000`.
+  </Step>
+
+  <Step title="Register a new user">
+    Create an account by sending `name`, `email`, and `password` in the request body. After a successful registration, the server also sends a verification email containing a 6-digit `code`.
+
+    ```bash
+    curl -X POST http://localhost:3000/api/user/create \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Jane Doe",
+        "email": "jane@example.com",
+        "password": "s3cur3P@ssword"
+      }'
+    ```
+
+    **Success response `200`:**
+
+    ```json
+    {
+      "msj": "Cuenta creada correctamente",
+      "status": true,
+      "newUser": {
+        "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+        "name": "Jane Doe",
+        "email": "jane@example.com",
+        "status": { "name": "Pendiente de confirmacion", "value": "2" },
+        "roles": [{ "name": "usuario", "value": "1" }]
+      }
+    }
+    ```
+
+    <Tip>
+      Check the inbox of the email address you provided — the verification code expires after **24 hours**. If it expires, use `POST /api/user/resend-code` to request a new one.
+    </Tip>
+  </Step>
+
+  <Step title="Verify the account">
+    Submit the `email` and the 6-digit `code` from the verification email to activate the account.
+
+    ```bash
+    curl -X POST http://localhost:3000/api/user/verify-account \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "jane@example.com",
+        "code": "482951"
+      }'
+    ```
+
+    **Success response `200`:**
+
+    ```json
+    {
+      "msj": "Cuenta confirmada correctamente. Iniciar sesion para poder disfrutar mas de nuestro contenido",
+      "status": true
+    }
+    ```
+
+    The account status is updated to `"usuario activo"` and the user can now log in.
+  </Step>
+
+  <Step title="Log in and obtain a token">
+    Exchange credentials for a JWT that you will include on every subsequent authenticated request.
+
+    ```bash
+    curl -X POST http://localhost:3000/api/user/login \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "jane@example.com",
+        "password": "s3cur3P@ssword"
+      }'
+    ```
+
+    **Success response `200`:**
+
+    ```json
+    {
+      "msj": "Bienvenido!",
+      "status": true,
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": {
+        "id": "64f1a2b3c4d5e6f7a8b9c0d1",
+        "name": "Jane Doe",
+        "email": "jane@example.com",
+        "status": [{ "name": "usuario activo", "value": "1" }],
+        "roles": [{ "name": "usuario", "value": "1" }],
+        "membership": { "status": { "code": 3, "status": "No registrado" } },
+        "codeseller": "839201",
+        "meseller": "",
+        "address": "",
+        "phone_number": "",
+        "typeIdentification": "",
+        "identification": "",
+        "avatar": ""
+      }
+    }
+    ```
+
+    Save the `token` value — it is valid for **365 days** and must be sent with every protected request.
+  </Step>
+
+  <Step title="Make an authenticated request">
+    Pass the token in the `Authorization` header as a Bearer token. The example below calls the member-listing endpoint, which requires authentication.
+
+    ```bash
+    curl -X POST http://localhost:3000/api/user/list-members/1/10 \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+      -d '{}'
+    ```
+
+    **Success response `200`:**
+
+    ```json
+    {
+      "msj": "Cargando miembros",
+      "status": true,
+      "data": [...],
+      "pagination": {
+        "pag": "1",
+        "perpage": 10,
+        "pags": 4
+      }
+    }
+    ```
+
+    <Note>
+      If the `Authorization` header is missing the server returns `401`. If the token is expired or invalid it returns `403`. See the [Authentication](/authentication) page for the full details.
+    </Note>
+  </Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## What's next?
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+- Read the [Authentication](/authentication) guide to understand the three middleware levels and all error responses.
+- Explore the full [Users API](/api/users/register) reference for every available field and status code.
+- Learn about the [Sale Lifecycle](/concepts/sale-lifecycle) to understand how orders are created and fulfilled.

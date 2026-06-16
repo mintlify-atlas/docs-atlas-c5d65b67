@@ -1,0 +1,71 @@
+---
+title: "Ecommerce Delivery API: REST backend for clothing stores"
+sidebarTitle: "Introduction"
+description: "A Node.js/Express REST API powering user management, product catalogs, sales orders, payments, and push notifications for clothing stores."
+---
+
+The Ecommerce Delivery API is a Node.js/Express backend built for clothing e-commerce platforms. It handles everything from user registration and authentication through to product catalog management with variants, end-to-end sales order lifecycle tracking, payment proof uploads, and real-time push notifications — all over a single consistent REST interface where every endpoint uses `POST`.
+
+## Explore the API
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Clone the repo, configure your environment, and make your first authenticated API call in minutes.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how JWT Bearer tokens are issued, passed, and validated across the three middleware levels.
+  </Card>
+  <Card title="Sale Lifecycle" icon="arrows-rotate" href="/concepts/sale-lifecycle">
+    Understand how a sales order moves from creation through payment confirmation to fulfilment.
+  </Card>
+  <Card title="Register a User" icon="user-plus" href="/api/users/register">
+    Full reference for the `POST /api/user/create` endpoint, including request fields and response shapes.
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="User management" icon="users">
+    Registration with email verification, role-based access control, avatar uploads, and password recovery flows.
+  </Card>
+  <Card title="Product catalog" icon="shirt">
+    Create and manage clothing products with size and colour variants, stored with images on Google Cloud Storage.
+  </Card>
+  <Card title="Sales order lifecycle" icon="bag-shopping">
+    Full order lifecycle from creation through payment proof upload to admin confirmation and delivery tracking.
+  </Card>
+  <Card title="JWT authentication" icon="key">
+    Stateless Bearer-token auth with three middleware tiers — required, admin-only, and optional — all signed with a configurable secret.
+  </Card>
+  <Card title="Push notifications" icon="bell">
+    Real-time FCM push notifications via Firebase Admin SDK keep users informed at every stage of their order.
+  </Card>
+  <Card title="Email notifications" icon="envelope">
+    Transactional emails for account verification and password recovery are sent using Nodemailer.
+  </Card>
+</CardGroup>
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js (ES Modules) |
+| Framework | Express 4 |
+| Database | MongoDB via Mongoose 8 |
+| Authentication | JSON Web Tokens (`jsonwebtoken`) |
+| File storage | Google Cloud Storage + Multer + Sharp |
+| Push notifications | Firebase Admin SDK |
+| Email | Nodemailer |
+| Dev server | Nodemon |
+
+## API conventions
+
+- **Base path:** `/api`
+- **HTTP method:** Every endpoint uses `POST`
+- **Body format:** `application/json` (or `multipart/form-data` for file-upload endpoints)
+- **Response envelope:** All responses return a JSON object with at minimum `msj` (message) and `status` (boolean) fields
+
+<Note>
+  The four active route groups are `/api/user`, `/api/sale`, `/api/product`, and `/api/notification`. Each group maps to its own Express router and controller layer.
+</Note>

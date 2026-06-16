@@ -1,0 +1,181 @@
+---
+title: "Authenticate requests to the Ecommerce Delivery API"
+sidebarTitle: "Authentication"
+description: "Obtain a JWT Bearer token from the login endpoint and pass it on every protected request using the Authorization header."
+---
+
+The Ecommerce Delivery API uses **JSON Web Tokens (JWT)** for authentication. After a user logs in, the server signs a token with the `SECRET` environment variable and returns it in the response. The client must include that token in the `Authorization` header for every request that requires authentication. Tokens last **365 days** and carry the full user identity, so no session state is stored on the server.
+
+<Note>
+  The token is signed and verified using the `SECRET` value set in your `.env` file. If `SECRET` is changed, all previously issued tokens become invalid immediately.
+</Note>
+
+## Obtaining a token
+
+Send a `POST` request to `/api/user/login` with the user's `email` and `password`.
+
+```bash
+curl -X POST http://localhost:3000/api/user/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane@example.com",
+    "password": "s3cur3P@ssword"
+  }'
+```
+
+**Success response `200`:**
+
+```json
+{
+  "msj": "Bienvenido!",
+  "status": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NGYxYT...",
+  "user": {
+    "id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "roles": [{ "name": "usuario", "value": "1" }],
+    "status": [{ "name": "usuario activo", "value": "1" }]
+  }
+}
+```
+
+Store the `token` string on the client. It is the only credential needed for subsequent calls.
+
+## Passing the token
+
+Include the token in every authenticated request using the standard `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+The server reads the header using the `authorization` key and splits on a space to extract the token portion (`authHeader?.split(" ")[1]`).
+
+**Example authenticated request:**
+
+```bash
+curl -X POST http://localhost:3000/api/user/update \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "name": "Jane Smith",
+    "address": "123 Main St",
+    "phone_number": "3001234567"
+  }'
+```
+
+## Authentication middleware levels
+
+There are three middleware functions in `src/middleware/libs/segurity.js`. Routes stack them to enforce different access rules.
+
+### `Token` — required authentication
+
+Applied to any route that needs a verified, logged-in user. The middleware:
+
+1. Reads the `Authorization` header and extracts the Bearer token.
+2. Verifies the token signature and expiry against `SECRET`.
+3. Looks up the user in MongoDB by the `_id` embedded in the token payload.
+4. Attaches a `req.user` object for downstream handlers.
+
+```javascript
+// Applied like this in a route file:
+router.post("/update", Token, upload, updateUser);
+router.post("/update-password-width-token", Token, updatePasswordWithToken);
+router.post("/list-members/:pag?/:perpage?", Token, Paginate, listMembers);
+```
+
+**`req.user` shape after `Token` succeeds:**
+
+```json
+{
+  "id": "64f1a2b3c4d5e6f7a8b9c0d1",
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "address": "",
+  "phone_number": "",
+  "typeIdentification": "",
+  "identification": "",
+  "roles": [{ "name": "usuario", "value": "1" }],
+  "status": [{ "name": "usuario activo", "value": "1" }],
+  "membership": { "status": { "code": 3, "status": "No registrado" } }
+}
+```
+
+### `TokenAdmin` — admin-only access
+
+Always chained **after** `Token`. It re-fetches the user from MongoDB and checks that at least one entry in `roles` has `value === "2"`. If not, the request is rejected.
+
+```javascript
+// Requires both Token and TokenAdmin:
+router.post("/update-role/:userId", Token, TokenAdmin, updateRole);
+```
+
+<Warning>
+  `TokenAdmin` must always follow `Token` in the middleware chain — it depends on `req.user.id` being set by `Token` first.
+</Warning>
+
+### `TokenOptional` — optional authentication
+
+Used on routes that serve both anonymous and authenticated users differently. If no token is present, `req.user` is set to `null` and the request continues. If a valid token is present, `req.user` is populated exactly as with `Token`.
+
+```javascript
+// req.user will be null for unauthenticated requests:
+router.post("/some-public-route", TokenOptional, handler);
+```
+
+| Scenario | `req.user` value |
+|---|---|
+| No `Authorization` header | `null` |
+| Valid token | Full user object |
+| Invalid / malformed token | `false` (request continues) |
+| Expired token | `403` returned immediately |
+
+## Token payload
+
+The JWT payload is set at login time and includes:
+
+```json
+{
+  "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "status": [{ "name": "usuario activo", "value": "1" }],
+  "roles": [{ "name": "usuario", "value": "1" }],
+  "membership": { "status": { "code": 3, "status": "No registrado" } },
+  "codeseller": "839201",
+  "meseller": "",
+  "address": "",
+  "phone_number": "",
+  "typeIdentification": "",
+  "identification": "",
+  "avatar": ""
+}
+```
+
+The token is signed with `expiresIn: "365d"`, making it valid for one year from the moment of issue.
+
+## Error responses
+
+| Status | Condition | Response body |
+|---|---|---|
+| `401` | No `Authorization` header or empty token | `{ "msj": "Sin autorizacion", "status": false }` |
+| `403` | Token signature is invalid or otherwise malformed | `{ "msj": "<error message>. Rechazo en la conexion", "status": false }` |
+| `403` | Token has expired | `{ "msj": "Sesion finalizada", "status": false }` |
+| `403` | User lacks the admin role (`TokenAdmin` check fails) | `{ "msj": "No tienes permisos para realizar esta accion", "status": false }` |
+| `404` | Token is valid but the user no longer exists in the database | `{ "msj": "Usuario no encontrado", "status": false }` |
+
+## Middleware summary by route
+
+| Route | Middleware applied |
+|---|---|
+| `POST /api/user/create` | None (public) |
+| `POST /api/user/verify-account` | None (public) |
+| `POST /api/user/resend-code` | None (public) |
+| `POST /api/user/login` | None (public) |
+| `POST /api/user/recover-password-code` | None (public) |
+| `POST /api/user/update-password-widthout-token` | None (public) |
+| `POST /api/user/update` | `Token` |
+| `POST /api/user/update-password-width-token` | `Token` |
+| `POST /api/user/list-members/:pag?/:perpage?` | `Token` |
+| `POST /api/user/update-role/:userId` | `Token` → `TokenAdmin` |

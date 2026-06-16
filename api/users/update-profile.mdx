@@ -1,0 +1,204 @@
+---
+title: "POST /api/user/update — Update user profile and avatar"
+sidebarTitle: "Update Profile"
+description: "Update the authenticated user's name, address, phone number, ID information, and avatar image using multipart/form-data."
+---
+
+This endpoint allows an authenticated user to update their own profile information. Because it supports avatar image uploads, the request must be sent as `multipart/form-data` rather than JSON. The user is identified from the JWT token, so no user ID is needed in the request body.
+
+<Note>
+  After a successful update, the changes are saved to the database but **will not appear in the current JWT token** until the user logs out and logs in again. The token is a signed snapshot taken at login time.
+</Note>
+
+---
+
+## Update Profile
+
+```
+POST /api/user/update
+```
+
+**Authentication:** Required — `Authorization: Bearer <token>`  
+**Content-Type:** `multipart/form-data`
+
+### Form Fields
+
+<ParamField body="name" type="string">
+  The user's updated full name.
+</ParamField>
+
+<ParamField body="address" type="string">
+  The user's physical address.
+</ParamField>
+
+<ParamField body="phone_number" type="string">
+  The user's phone number.
+</ParamField>
+
+<ParamField body="typeIdentification" type="string">
+  The type of government-issued identification document (e.g., `"CC"`, `"Pasaporte"`, `"CE"`).
+</ParamField>
+
+<ParamField body="identification" type="string">
+  The identification document number.
+</ParamField>
+
+<ParamField body="avatar" type="file">
+  Optional. One or more image files uploaded under the `avatar` field name. Stored in `storage/user/` on the server. If omitted, the existing avatar is kept.
+</ParamField>
+
+### Response
+
+#### 200 — Profile updated
+
+<ResponseField name="msj" type="string">
+  `"Usuario actualizado exitosamente, para visualizar los cambios cierra sesion"`
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="newUser" type="object">
+  The user document as it existed **before** the update (the value returned by `findOneAndUpdate` without the `new` option). The database now contains the updated values.
+</ResponseField>
+
+#### 401 — No token provided
+
+```json
+{
+  "msj": "Sin autorizacion",
+  "status": false
+}
+```
+
+#### 403 — Token expired or invalid
+
+```json
+{
+  "msj": "Sesion finalizada",
+  "status": false
+}
+```
+
+#### 404 — User not found
+
+```json
+{
+  "msj": "Usuario no encontrado",
+  "status": false
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-api.com/api/user/update \
+  -H "Authorization: Bearer <token>" \
+  -F "name=Maria Lopez" \
+  -F "address=Calle 10 #45-67, Bogotá" \
+  -F "phone_number=3001234567" \
+  -F "typeIdentification=CC" \
+  -F "identification=1020304050" \
+  -F "avatar=@/path/to/photo.jpg"
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Usuario actualizado exitosamente, para visualizar los cambios cierra sesion",
+  "status": true,
+  "newUser": {
+    "_id": "664a1f2e9b1c4a001f2e3d44",
+    "name": "Maria Lopez",
+    "email": "maria@example.com",
+    "address": "Av. Siempre Viva 742",
+    "phone_number": "3009876543",
+    "typeIdentification": "CC",
+    "identification": "1020304050",
+    "avatar": []
+  }
+}
+```
+
+---
+
+## Update User Role (Admin Only)
+
+Administrators can assign or replace a user's role set using this endpoint. The `roles` array completely replaces the user's existing roles.
+
+```
+POST /api/user/update-role/:userId
+```
+
+**Authentication:** Required — `Authorization: Bearer <token>` (must have admin role, value `"2"`)
+
+### Path Parameter
+
+<ParamField path="userId" type="string" required>
+  The MongoDB `_id` of the user whose roles are being updated.
+</ParamField>
+
+### Request Body
+
+<ParamField body="roles" type="array" required>
+  Array of role objects to assign to the user. Each object must include:
+
+  - `name` (string) — human-readable role name (e.g., `"admin"`, `"usuario"`, `"promotor"`)
+  - `value` (string) — numeric role code: `"1"` (usuario), `"2"` (admin), `"3"` (promotor), `"4"` (invitado), `"5"` (company)
+</ParamField>
+
+### Response
+
+#### 200 — Role updated
+
+<ResponseField name="msj" type="string">
+  `"Rol actualizado exitosamente"`
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+#### 403 — Insufficient permissions
+
+Returned when the authenticated user does not have the admin role (`value: "2"`).
+
+```json
+{
+  "msj": "No tienes permisos para realizar esta accion",
+  "status": false
+}
+```
+
+#### 404 — User not found
+
+```json
+{
+  "msj": "Usuario no encontrado",
+  "status": false
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-api.com/api/user/update-role/664a1f2e9b1c4a001f2e3d44 \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "roles": [
+      { "name": "admin", "value": "2" }
+    ]
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Rol actualizado exitosamente",
+  "status": true
+}
+```

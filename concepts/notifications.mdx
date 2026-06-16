@@ -1,0 +1,160 @@
+---
+title: "Push notifications via Firebase Cloud Messaging"
+sidebarTitle: "Notifications"
+description: "The API uses Firebase Admin SDK to push real-time order status alerts to buyers and admins at every key stage of the sale lifecycle."
+---
+
+The Ecommerce Delivery API delivers real-time push notifications to mobile and web clients through [Firebase Cloud Messaging (FCM)](https://firebase.google.com/docs/cloud-messaging), using the official `firebase-admin` Node.js SDK. Notifications are fired automatically inside the sale controllers whenever a meaningful order event occurs — no polling required on the client side.
+
+<Note>
+  Push notifications require a valid Firebase service account. The API initialises the Admin SDK by reading a JSON credentials file (`quokka-notify-push-firebase-adminsdk-fbsvc-*.json`) at startup via `firebase-admin`'s `credential.cert()` method. This file must be present in `src/middleware/firebase/` before the server starts, or the FCM integration will fail to initialise.
+</Note>
+
+## How device tokens are stored
+
+Before a device can receive notifications, it must register its FCM token with the API. The `NotificationToken` model (`src/models/Notification.js`) stores one record per user device:
+
+| Field      | Type    | Description                                          |
+|------------|---------|------------------------------------------------------|
+| `userId`   | String  | The MongoDB `_id` of the owning user                 |
+| `fcmToken` | String  | The device/browser FCM registration token            |
+| `active`   | Boolean | Whether this token should receive notifications (default `true`) |
+
+Only tokens with `active: true` are queried when notifications are dispatched. If a user has no active token registered, the notification is silently skipped.
+
+## Registering a device token
+
+Call `POST /api/notification/register-token` to register or refresh a device token. The endpoint uses an **upsert** — if a token already exists for the given `userId` it is updated in place and marked `active: true`, so it is safe to call on every app launch or after login.
+
+```bash
+POST /api/notification/register-token
+Content-Type: application/json
+```
+
+```json
+{
+  "userId": "664f1a2b3c4d5e6f7a8b9c0d",
+  "fcmToken": "eKw9z…FCM_TOKEN_STRING…XkP"
+}
+```
+
+**Success response:**
+
+```json
+{ "success": true }
+```
+
+<Note>
+  Call this endpoint on every app startup and immediately after a successful login. FCM tokens can be rotated by the Firebase SDK at any time; re-registering ensures the stored token stays current and the user continues to receive notifications.
+</Note>
+
+## Notification triggers
+
+The API fires three distinct push notification events, all originating from `src/controllers/saleController.js`.
+
+<CardGroup cols={1}>
+  <Card title="1 — Payment proof uploaded" icon="receipt">
+    **Triggered by:** `POST /api/sale/laod-proof/:saleId`
+
+    **Recipients:** All users with role `value: "2"` (admin) who have an active FCM token.
+
+    When a buyer uploads their payment proof, the API fetches every admin user ID, queries `NotificationToken` for their active tokens, and dispatches an individual FCM message to each one.
+
+    ```json
+    {
+      "notification": {
+        "title": "Nuevo comprobante de pago",
+        "body": "El usuario Ana con codigo ABC123 subio su comprobante de pago"
+      },
+      "data": {
+        "saleId": "664f1a2b3c4d5e6f7a8b9c0d",
+        "type": "dateproof_update"
+      }
+    }
+    ```
+  </Card>
+
+  <Card title="2 — Order status changed" icon="arrow-right-arrow-left">
+    **Triggered by:** `POST /api/sale/status-change/:saleId`
+
+    **Recipient:** The buyer who owns the sale (single token lookup by `userId`).
+
+    When an admin changes the top-level status of a sale (e.g. from `Validando` to `Pagado`), the buyer is notified with the new status name and their order code.
+
+    ```json
+    {
+      "notification": {
+        "title": "Actualizacion de tu pedido",
+        "body": "El estado de tu compra con codigo ABC123 a cambiado a Pagado"
+      },
+      "data": {
+        "saleId": "664f1a2b3c4d5e6f7a8b9c0d",
+        "type": "status_update"
+      }
+    }
+    ```
+  </Card>
+
+  <Card title="3 — Delivery checkpoint added" icon="truck">
+    **Triggered by:** `POST /api/sale/status-delivery/:saleId`
+
+    **Recipient:** The buyer who owns the sale (single token lookup by `userId`).
+
+    Each time a delivery agent appends a new entry to the `deliveryStatus` array, the buyer receives a real-time update combining the `description` and `detail` fields from the request body.
+
+    ```json
+    {
+      "notification": {
+        "title": "Actualizacion en la entrega",
+        "body": "Paquete en camino - Tu pedido salió del centro de distribución en Bogotá"
+      },
+      "data": {
+        "saleId": "664f1a2b3c4d5e6f7a8b9c0d",
+        "type": "delivery_update"
+      }
+    }
+    ```
+  </Card>
+</CardGroup>
+
+## The `data` payload
+
+Every notification includes a structured `data` object alongside the visible `notification` object. This allows the client application to navigate the user directly to the relevant order screen when the notification is tapped.
+
+| Field    | Value                                           |
+|----------|-------------------------------------------------|
+| `saleId` | The MongoDB `_id` of the affected sale          |
+| `type`   | One of `"dateproof_update"`, `"status_update"`, or `"delivery_update"` |
+
+```javascript
+// Example: handle incoming FCM message in a React Native app
+messaging().onMessage(async remoteMessage => {
+  const { saleId, type } = remoteMessage.data;
+
+  if (type === "status_update" || type === "delivery_update") {
+    // Navigate user to their order detail screen
+    navigation.navigate("OrderDetail", { saleId });
+  }
+});
+```
+
+## Notification delivery flow
+
+```
+Client app                    API server                     Firebase
+    │                             │                              │
+    │── POST /register-token ────►│                              │
+    │                       upsert NotificationToken             │
+    │◄── { success: true } ───────│                              │
+    │                             │                              │
+    │── POST /sale/laod-proof ───►│                              │
+    │                        find admin tokens                   │
+    │                             │── messaging().send() ───────►│
+    │                             │                         FCM routes to
+    │                             │                         admin devices
+    │◄── 200 OK ──────────────────│                              │
+```
+
+<Warning>
+  If no `NotificationToken` document exists for a user, or if the matching document has `active: false`, the notification is silently skipped — no error is thrown. Ensure clients always re-register their token after login so the record stays active.
+</Warning>

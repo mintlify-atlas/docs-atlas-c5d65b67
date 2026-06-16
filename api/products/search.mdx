@@ -1,0 +1,255 @@
+---
+title: "Search and filter products by title or shirt type"
+sidebarTitle: "Search Products"
+description: "Two endpoints to find products: full-text title search with regex matching, and exact filtering by numeric shirt-type category."
+---
+
+The search group provides two complementary ways to discover products. The title search endpoint performs a case-insensitive regular expression match against the `title` field, suitable for free-text keyword searches. The shirt-type filter endpoint accepts a numeric category code and returns only products whose `typeShirt` matches the corresponding label exactly. Both endpoints support pagination via optional path parameters and are accessible without authentication.
+
+---
+
+## POST /api/product/search-product/:query/:pag?/:perpage?
+
+Search the product catalog by keyword. The `query` path parameter is used as a case-insensitive regular expression pattern matched against the product `title` field.
+
+**Auth:** Optional (token accepted but not required)
+
+### Path parameters
+
+<ParamField path="query" type="string" required>
+  The search string to match against product titles. The value is interpreted as a case-insensitive regex pattern (e.g. `tee` matches `Classic Tee`, `TEE SHIRT`, `street-tee`).
+</ParamField>
+
+<ParamField path="pag" type="number">
+  Page number to retrieve. Defaults to `1` when omitted. Pages are 1-indexed.
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  Number of results per page. Defaults to `10` when omitted.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"Cargando producto"` on success.
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of matching product objects, sorted by `_id` descending (newest first). Each item has the same shape as a product returned by the [List Products](/api/products/list) endpoint.
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination metadata.
+
+  <Expandable title="pagination fields">
+    <ResponseField name="pag" type="string">
+      The current page number as provided in the path.
+    </ResponseField>
+    <ResponseField name="perpage" type="number">
+      The `pag` value from `req.body` as set by the `Paginate` middleware (reflects the raw page parameter).
+    </ResponseField>
+    <ResponseField name="pags" type="number">
+      Total number of pages, calculated as `⌈matchingProducts / perpage⌉`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Cause |
+|---|---|
+| `500` | Unexpected server error. |
+
+### Example
+
+```bash
+# Search for products with "hoodie" in the title, first page, 10 per page
+curl -X POST https://your-domain.com/api/product/search-product/hoodie
+
+# Search for "logo tee", page 2, 5 per page
+curl -X POST https://your-domain.com/api/product/search-product/logo%20tee/2/5
+
+# Authenticated request (optional)
+curl -X POST https://your-domain.com/api/product/search-product/oversize/1/10 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Success response (200):**
+
+```json
+{
+  "msj": "Cargando producto",
+  "status": true,
+  "data": [
+    {
+      "_id": "664a1f2e8b3c4d001e2f3a4b",
+      "userId": "663f0e1d7a2b3c000d1e2f3a",
+      "title": "Premium Hoodie",
+      "description": "Warm heavyweight fleece hoodie.",
+      "price": 59.99,
+      "minCant": 30,
+      "discount": "Sin descuento",
+      "priceDiscount": "",
+      "colorsSize": [
+        { "label": "Negro", "value": "2" },
+        { "label": "Gris oscuro", "value": "3" }
+      ],
+      "sizes": [
+        { "label": "M", "value": "3" },
+        { "label": "L", "value": "4" },
+        { "label": "XL", "value": "5" }
+      ],
+      "typeShirt": "Hoodie",
+      "productImg": ["storage/product/7hoodie-front.jpg"],
+      "points": { "cant": 22, "users": [] },
+      "createdAt": "2024-05-18T10:00:00.000Z",
+      "updatedAt": "2024-05-18T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "pag": "1",
+    "perpage": 10,
+    "pags": 1
+  }
+}
+```
+
+---
+
+## POST /api/product/get/by-shirt-types/:typeShirt/:pag?/:perpage?
+
+Filter products by their shirt-type category using a numeric code. The code is mapped server-side to a `typeShirt` label and an exact-match database query is performed. This is useful for category landing pages or type-based navigation.
+
+**Auth:** Optional (token accepted but not required)
+
+### Path parameters
+
+<ParamField path="typeShirt" type="number" required>
+  A numeric code representing the shirt-type category. Valid values:
+
+  | Code | `typeShirt` label |
+  |---|---|
+  | `1` | `Overside` |
+  | `2` | `CropTop` |
+  | `3` | `Regular Fit` |
+  | `4` | `Semi-Overside` |
+  | `5` | `Hoodie` |
+
+  Any value outside the range `1–5` returns a `400` error.
+</ParamField>
+
+<ParamField path="pag" type="number">
+  Page number to retrieve. Defaults to `1` when omitted. Pages are 1-indexed.
+</ParamField>
+
+<ParamField path="perpage" type="number">
+  Number of results per page. Defaults to `10` when omitted.
+</ParamField>
+
+### Responses
+
+<ResponseField name="msj" type="string">
+  `"Cargando productos de tipo {typeShirt}"` on success, where `{typeShirt}` is the resolved label (e.g. `"Cargando productos de tipo Hoodie"`).
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of products whose `typeShirt` field exactly matches the resolved label, sorted by `_id` descending (newest first). Each item has the same shape as a product returned by the [List Products](/api/products/list) endpoint.
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination metadata.
+
+  <Expandable title="pagination fields">
+    <ResponseField name="pag" type="number">
+      The current page number (1-indexed).
+    </ResponseField>
+    <ResponseField name="perpage" type="number">
+      Number of items per page used for this request.
+    </ResponseField>
+    <ResponseField name="pags" type="number">
+      Total number of pages, calculated as `⌈matchingProducts / perpage⌉`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | `msj` | Cause |
+|---|---|---|
+| `400` | `"Tipo de camiseta no válido"` | The `typeShirt` path parameter does not map to a known category (valid range: `1–5`). |
+| `500` | _(error object)_ | Unexpected server error. |
+
+<Note>
+  The `typeShirt` parameter is treated as a number. Passing a non-numeric value (e.g. `/get/by-shirt-types/abc`) will resolve to `NaN`, which is not a valid key in the type map and will trigger the `400` error response.
+</Note>
+
+### Example
+
+```bash
+# Get all Hoodie products (type code 5), first page
+curl -X POST https://your-domain.com/api/product/get/by-shirt-types/5
+
+# Get CropTop products (type code 2), page 1, 6 per page
+curl -X POST https://your-domain.com/api/product/get/by-shirt-types/2/1/6
+
+# Authenticated request (optional)
+curl -X POST https://your-domain.com/api/product/get/by-shirt-types/3/1/10 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Success response (200) — type code `5` (Hoodie):**
+
+```json
+{
+  "msj": "Cargando productos de tipo Hoodie",
+  "status": true,
+  "data": [
+    {
+      "_id": "664a1f2e8b3c4d001e2f3a4b",
+      "userId": "663f0e1d7a2b3c000d1e2f3a",
+      "title": "Premium Hoodie",
+      "description": "Warm heavyweight fleece hoodie.",
+      "price": 59.99,
+      "minCant": 30,
+      "discount": "Sin descuento",
+      "priceDiscount": "",
+      "colorsSize": [
+        { "label": "Negro", "value": "2" },
+        { "label": "Gris oscuro", "value": "3" }
+      ],
+      "sizes": [
+        { "label": "M", "value": "3" },
+        { "label": "L", "value": "4" },
+        { "label": "XL", "value": "5" }
+      ],
+      "typeShirt": "Hoodie",
+      "productImg": ["storage/product/7hoodie-front.jpg"],
+      "points": { "cant": 22, "users": [] },
+      "createdAt": "2024-05-18T10:00:00.000Z",
+      "updatedAt": "2024-05-18T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "pag": 1,
+    "perpage": 10,
+    "pags": 3
+  }
+}
+```
+
+**Error response (400) — invalid type code:**
+
+```json
+{
+  "msj": "Tipo de camiseta no válido",
+  "status": false
+}
+```

@@ -1,0 +1,152 @@
+---
+title: "Configure Google Cloud Storage for image uploads"
+sidebarTitle: "Cloud Storage"
+description: "Set up Google Cloud Storage to handle image uploads for product listings, user avatars, and sale payment proofs in the Ecommerce Delivery API."
+---
+
+The Ecommerce Delivery API stores all user-generated images — product photos, user avatars, and payment proof screenshots — in a [Google Cloud Storage](https://cloud.google.com/storage) bucket. Multer stages each upload to a local `storage/` subdirectory first; Sharp then re-encodes the file to WebP at the correct dimensions before it is streamed to the bucket. The public HTTPS URL returned by Cloud Storage is what gets persisted in MongoDB.
+
+## Required environment variables
+
+Three environment variables control access to Google Cloud Storage. Set these in your `.env` file:
+
+<ParamField path="NAMEGOOGLECLOUD" type="string" required>
+  The name of the Cloud Storage bucket that receives all uploaded images, for
+  example `my-ecommerce-bucket`. The bucket must exist in your Google Cloud
+  project before the server starts.
+</ParamField>
+
+<ParamField path="CLIENT_ID" type="string" required>
+  The OAuth 2.0 Client ID associated with your Google Cloud service account.
+</ParamField>
+
+<ParamField path="CLIENT_SECRET" type="string" required>
+  The OAuth 2.0 Client Secret for the service account. Keep this out of version
+  control.
+</ParamField>
+
+<Note>
+  The API authenticates to Google Cloud Storage using a service account JSON
+  key file (`ecommerce-467123-55f9c79a002a.json`) placed alongside
+  `cloudStorage.js`. You must download this file from the Google Cloud Console
+  (**IAM & Admin → Service Accounts → Keys**) and add it to
+  `src/middleware/utils/` before running the server. The file must be excluded
+  from version control.
+</Note>
+
+## Local staging directories
+
+Before any file reaches Cloud Storage it is saved to disk by Multer. The API uses three separate staging directories, one per resource type:
+
+| Directory | Used for |
+|-----------|----------|
+| `storage/user` | User avatar uploads |
+| `storage/product` | Product image uploads |
+| `storage/sale` | Payment proof image uploads |
+
+These directories are referenced directly in the route files via `multer.diskStorage`. Create them in the project root if they do not already exist:
+
+```bash
+mkdir -p storage/user storage/product storage/sale
+```
+
+## How `cloudStorage.js` works
+
+`src/middleware/utils/cloudStorage.js` initialises a `@google-cloud/storage` client using the project ID and the service account credentials file, then exports a reference to the target bucket:
+
+```javascript
+import { Storage } from "@google-cloud/storage";
+import ksyFilename from "./ecommerce-467123-55f9c79a002a.json" with { type: "json" };
+import config from "../../config.js";
+
+let projectId = "ecommerce-467123";
+let keyFilename = "ecommerce-467123-55f9c79a002a";
+
+const storage = new Storage({
+  projectId,
+  keyFilename,
+  credentials: ksyFilename,
+});
+
+const bucket = storage.bucket(config.NAMEGOOGLECLOUD);
+export { bucket };
+```
+
+The exported `bucket` object is imported by `process.js` and used for all upload operations.
+
+## Image processing with Sharp
+
+Before uploading, `process.js` uses [Sharp](https://sharp.pixelplumbing.com/) to resize each image to the appropriate dimensions and re-encode it as WebP at 70% quality. The target dimensions depend on the field name passed to `imageGenerate`:
+
+| Field name | Width | Height | Used for |
+|------------|-------|--------|----------|
+| `avatar` | 250 px | 250 px | User profile picture |
+| `imgPay` | 779 px | 1,600 px | Payment proof image |
+| `productImg` | 800 px | 800 px | Product listing image |
+| `publication` | 400 px | 400 px | Publication image |
+| `voucher` | 350 px | 350 px | Voucher image |
+
+## Image upload flow
+
+<Steps>
+  <Step title="Client sends a multipart/form-data request">
+    The client POSTs a file (e.g. `avatar`, `productImg`, or `imgPay`) to the
+    relevant API endpoint. Express receives the request and passes it through
+    the Multer middleware.
+  </Step>
+
+  <Step title="Multer writes the raw file to disk">
+    Multer's `diskStorage` engine saves the incoming file to the appropriate
+    staging directory — `storage/user`, `storage/product`, or `storage/sale` —
+    with a random numeric prefix added to the original filename to avoid
+    collisions.
+  </Step>
+
+  <Step title="imageGenerate processes and uploads each file">
+    The route controller calls `imageGenerate(files, fieldName)` from
+    `process.js`. For each file Multer staged, the function:
+
+    1. Determines the correct output dimensions based on `fieldName`.
+    2. Runs Sharp on the staged file — resizing to the target dimensions and
+       encoding as WebP at 70% quality — writing the result to the same staging
+       directory.
+    3. Calls the internal `uploadImage()` helper, which streams the processed
+       WebP file to the Cloud Storage bucket with a timestamp-based destination
+       name.
+    4. Constructs and returns a public URL in the form
+       `https://storage.googleapis.com/<NAMEGOOGLECLOUD>/<timestampedFilename>`.
+  </Step>
+
+  <Step title="URLs and cleanup paths are returned to the controller">
+    `imageGenerate` returns an object containing the uploaded image URL(s) under
+    the field name key, plus a `deleteFiles` array listing every local staging
+    path that should be removed. The controller stores the URLs in MongoDB and
+    calls `deleteImages(deleteFiles)` to clean up the temporary files from disk.
+  </Step>
+
+  <Step title="Temporary local files are deleted">
+    `deleteImages` iterates the `deleteFiles` array, normalises each path, and
+    calls `fs.unlinkSync()` on files that still exist. This keeps the
+    `storage/` directories clear between requests.
+  </Step>
+</Steps>
+
+## Key functions in `process.js`
+
+```javascript
+// Upload a single processed image to Cloud Storage
+// Returns { imageLink: "<public-url>" }
+export const uploadImage = async (image, name) => { ... };
+
+// Delete an array of local file paths
+export const deleteImages = (files) => { ... };
+
+// Orchestrate resizing, uploading, and cleanup path collection
+// fieldName: string | string[]  — e.g. "avatar" or ["productImg"]
+// Returns { [fieldName]: imageObjects[], deleteFiles: string[] }
+export const imageGenerate = async (files, fieldName) => { ... };
+```
+
+## Firebase Admin SDK
+
+The project also includes a Firebase Admin SDK initialisation in `src/middleware/firebase/firebase.js`. This is used exclusively for sending **push notifications** via Firebase Cloud Messaging and is entirely independent of the Google Cloud Storage pipeline. See [Notifications](/concepts/notifications) for details.

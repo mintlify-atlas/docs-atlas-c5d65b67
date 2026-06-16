@@ -1,0 +1,120 @@
+---
+title: "Roles and permissions in the Ecommerce Delivery API"
+sidebarTitle: "Roles & Permissions"
+description: "A 4-tier role system controls endpoint access using JWT middleware guards that verify identity and role membership on every protected request."
+---
+
+The Ecommerce Delivery API enforces access control through a combination of JSON Web Tokens and role-based middleware guards. Every user carries a `roles` array in their profile, and three middleware functions — `Token`, `TokenAdmin`, and `TokenOptional` — cooperate to decide whether a request is allowed to proceed to its handler.
+
+## The four roles
+
+Roles are defined as `{name, value}` objects stored on the `User` document. The numeric string in the `value` field is what the middleware checks programmatically.
+
+| Value | Name      | Description                                      |
+|-------|-----------|--------------------------------------------------|
+| `"1"` | usuario   | Regular buyer — can place orders and upload payment proof |
+| `"2"` | admin     | Administrator — can validate payments, change order statuses, and search all sales |
+| `"3"` | promotor  | Promotor — promotional role                      |
+| `"5"` | company   | Company — can list and export all sales records  |
+
+<Note>
+  The `roles` field on the `User` model is an **array** of `{name, value}` objects, not a single scalar. This means a single user account can hold more than one role simultaneously — for example, a user with both `"2"` (admin) and `"5"` (company) values would pass both the `TokenAdmin` and `TokenCompany` guards without needing separate accounts.
+</Note>
+
+## The three middleware guards
+
+All three guards live in `src/middleware/libs/segurity.js` and are applied directly in the route definitions.
+
+### `Token` — authentication baseline
+
+`Token` is the foundation of all protected routes. It:
+
+1. Reads the `Authorization: Bearer <token>` header.
+2. Verifies the JWT signature against the server secret.
+3. Fetches the corresponding `User` document from MongoDB.
+4. Attaches a sanitised user object to `req.user` and calls `next()`.
+
+If no token is present, the response is `401 Unauthorized`. If the token is invalid or expired, the response is `403 Forbidden`.
+
+```javascript
+// Fields attached to req.user by the Token middleware
+req.user = {
+  id,
+  name,
+  address,
+  phone_number,
+  typeIdentification,
+  identification,
+  email,
+  roles,       // Array of { name, value }
+  status,
+  membership,
+};
+```
+
+### `TokenAdmin` — admin-only gate
+
+`TokenAdmin` **must be chained after `Token`** — it relies on `req.user.id` already being set. It queries the database once more for the user and checks whether any entry in `roles` carries `value === "2"`. If not, it returns `403 Forbidden` with the message `"No tienes permisos para realizar esta accion"`.
+
+### `TokenOptional` — unauthenticated pass-through
+
+`TokenOptional` never blocks a request. When no `Authorization` header is present it simply sets `req.user = null` and calls `next()`. When a valid token *is* provided it populates `req.user` identically to `Token`. This guard is used on endpoints — such as product listings — where authenticated users may receive personalised data but anonymous visitors must still be served.
+
+## Route-level guard mapping
+
+The table below shows how the guards are applied across the API's main route groups.
+
+| Route | Guards applied | Who can call it |
+|-------|---------------|-----------------|
+| `POST /api/sale/pay/:productId` | `Token` | Any authenticated user |
+| `POST /api/sale/laod-proof/:saleId` | `Token` | Authenticated owner or admin |
+| `POST /api/sale/status-change/:saleId` | `Token` | Authenticated user (admin in practice) |
+| `POST /api/sale/status-delivery/:saleId` | `Token` | Authenticated user |
+| `POST /api/sale/all-list/:pag?/:perpage?` | `Token` | Authenticated user |
+| `POST /api/sale/list-sale/:pag?/:perpage?` | `Token` | Authenticated user |
+| `POST /api/sale/export-list-sale-xlsx` | `Token` | Authenticated user |
+| `POST /api/sale/get-search/:query/:pag?` | `Token` → `TokenAdmin` | Admin only |
+| `POST /api/notification/register-token` | *(none)* | Public |
+
+## Updating a user's roles
+
+Roles are managed by administrators via the user management endpoint:
+
+```bash
+POST /api/user/update-role/:userId
+Authorization: Bearer <admin_jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "roles": [
+    { "name": "admin",   "value": "2" },
+    { "name": "company", "value": "5" }
+  ]
+}
+```
+
+## Inspecting roles from the JWT payload
+
+When you decode the JWT on the client side you can inspect the roles to decide which UI elements to render. The decoded payload includes the MongoDB `_id`; the full roles array is only available after the server hydrates it from the database and attaches it to `req.user`.
+
+```javascript
+import jwt from "jsonwebtoken";
+
+// Client-side: decode without verification to read claims
+const decoded = jwt.decode(token);
+console.log(decoded._id); // MongoDB ObjectId string
+
+// Server-side (inside a middleware or controller): roles are on req.user
+const isAdmin = req.user.roles.some((r) => r.value === "2");
+const isCompany = req.user.roles.some((r) => r.value === "5");
+
+if (isAdmin) {
+  // grant admin access
+}
+```
+
+<Tip>
+  Always verify the JWT on the server using `jwt.verify()` — never trust the decoded payload from the client directly. The `Token` middleware handles this for every protected route automatically.
+</Tip>

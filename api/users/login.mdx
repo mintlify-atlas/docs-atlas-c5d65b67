@@ -1,0 +1,195 @@
+---
+title: "POST /api/user/login — Authenticate and get a JWT token"
+sidebarTitle: "Login"
+description: "Authenticate with email and password to receive a signed JWT Bearer token valid for 365 days."
+---
+
+This endpoint validates a user's credentials and, on success, returns a signed JSON Web Token (JWT) along with the user's profile data. The token must be included in the `Authorization` header as a Bearer token for all protected endpoints. Tokens are valid for **365 days** from the time of issue.
+
+<Warning>
+  Only accounts that have been verified via `POST /api/user/verify-account` can log in. Attempting to authenticate with an unconfirmed account returns a `403` error.
+</Warning>
+
+## Endpoint
+
+```
+POST /api/user/login
+```
+
+**Authentication:** None required
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  The registered email address of the user.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password.
+</ParamField>
+
+## Response
+
+### 200 — Login successful
+
+<ResponseField name="msj" type="string">
+  `"Bienvenido!"`
+</ResponseField>
+
+<ResponseField name="status" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  A signed JWT Bearer token. Valid for 365 days. Pass this in the `Authorization` header as `Bearer <token>` on subsequent requests.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The authenticated user's profile snapshot.
+
+  <Expandable title="user fields">
+    <ResponseField name="user.id" type="string">
+      The user's unique database identifier.
+    </ResponseField>
+    <ResponseField name="user.name" type="string">
+      The user's full name.
+    </ResponseField>
+    <ResponseField name="user.email" type="string">
+      The user's email address (lowercase).
+    </ResponseField>
+    <ResponseField name="user.roles" type="array">
+      Array of role objects `{ name, value }`. Common values: `"1"` (usuario), `"2"` (admin), `"3"` (promotor).
+    </ResponseField>
+    <ResponseField name="user.status" type="array">
+      Array of status objects `{ name, value }`. Value `"1"` = active.
+    </ResponseField>
+    <ResponseField name="user.address" type="string">
+      The user's registered address.
+    </ResponseField>
+    <ResponseField name="user.phone_number" type="string">
+      The user's phone number.
+    </ResponseField>
+    <ResponseField name="user.typeIdentification" type="string">
+      Type of government-issued ID (e.g., `"CC"`, `"Pasaporte"`).
+    </ResponseField>
+    <ResponseField name="user.identification" type="string">
+      The ID document number.
+    </ResponseField>
+    <ResponseField name="user.avatar" type="array">
+      Array of avatar image paths/URLs.
+    </ResponseField>
+    <ResponseField name="user.membership" type="object">
+      The user's membership data, including status code and type.
+    </ResponseField>
+    <ResponseField name="user.codeseller" type="string">
+      This user's unique referral code, usable as `meseller` when inviting others to register.
+    </ResponseField>
+    <ResponseField name="user.meseller" type="string">
+      The referral code of the seller who invited this user, if any.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### 203 — Missing fields or wrong password
+
+Returned when `email` or `password` are not provided, or when the password does not match.
+
+```json
+{
+  "msj": "Completa todos los campos para poder iniciar sesion",
+  "status": false
+}
+```
+
+```json
+{
+  "msj": "Contraseña incorrecta",
+  "status": false
+}
+```
+
+### 403 — Invalid email or inactive account
+
+Returned when the email is not found in the database, or when the account has not been verified.
+
+```json
+{
+  "msj": "Email no valido",
+  "status": false
+}
+```
+
+```json
+{
+  "msj": "Tu cuenta no esta activa. Confirma tu cuenta para poder iniciar sesion",
+  "status": false
+}
+```
+
+## Token Payload
+
+The JWT contains the following claims, encoded at sign-in time:
+
+| Claim | Description |
+|---|---|
+| `_id` | User's database ID |
+| `name` | Full name |
+| `email` | Email address |
+| `status` | Account status array |
+| `roles` | Roles array |
+| `membership` | Membership object |
+| `codeseller` | User's own referral code |
+| `meseller` | Referrer's seller code |
+| `address` | Address |
+| `phone_number` | Phone number |
+| `typeIdentification` | ID type |
+| `identification` | ID number |
+| `avatar` | Avatar array |
+
+<Note>
+  The token payload reflects the user's data **at the time of login**. Profile updates made via `POST /api/user/update` will not be reflected in the token until the user logs in again.
+</Note>
+
+## Using the Token
+
+Include the token in the `Authorization` header for all endpoints that require authentication:
+
+```
+Authorization: Bearer <token>
+```
+
+## Example
+
+```bash
+curl -X POST https://your-api.com/api/user/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "maria@example.com",
+    "password": "securePass123"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "msj": "Bienvenido!",
+  "status": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "664a1f2e9b1c4a001f2e3d44",
+    "name": "Maria Lopez",
+    "email": "maria@example.com",
+    "roles": [{ "name": "usuario", "value": "1" }],
+    "status": [{ "name": "usuario activo", "value": "1" }],
+    "address": "Calle 10 #45-67",
+    "phone_number": "3001234567",
+    "typeIdentification": "CC",
+    "identification": "1020304050",
+    "avatar": [],
+    "membership": { "status": { "code": 3, "status": "No registrado" } },
+    "codeseller": "XK9P2Q",
+    "meseller": "ABC123"
+  }
+}
+```
